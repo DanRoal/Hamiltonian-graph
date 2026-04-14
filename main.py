@@ -1,4 +1,4 @@
-from graficator import *
+from graficador import *
 from interface import *
 from qutip import *
 import customtkinter as ctk
@@ -22,6 +22,7 @@ root.minsize(400,600)
 
 basic_button(root, "hola")
 button2 = ctk.CTkButton(root, text="adios")
+button2.grid(row = 0, column = 1)
 
 root.mainloop()
 

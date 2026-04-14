@@ -8,8 +8,8 @@ import pickle
 from parametros import *
 from qutip import *
 
-epsilon_val = np.linspace(EPSILON_IN,EPSILON_OUT,DIVISIONES)
-lamda_val = np.linspace(LAMDA_IN,LAMDA_OUT,DIVISIONES)
+epsilon_val = np.linspace(EPSILON_IN,EPSILON_OUT,DIVISIONES_EPSILON)
+lamda_val = np.linspace(LAMDA_IN,LAMDA_OUT,DIVISIONES_LAMDA)
 #g = lamda / 2*(np.sqrt(N_ATOMOS)) # Acoplamiento
 
 lista_tiempos = np.linspace(0, TIEMPO, PASOS)
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     fin = time.time()
     print(f"Tardó {fin - inicio:.3f} segundos")
 
-    nombre_archivo = f"res_cav{N_CAV}_at{N_ATOMOS}_t{TIEMPO}_pas{PASOS}_in{EPSILON_IN}_out{EPSILON_OUT}_div{DIVISIONES}"
+    nombre_archivo = f"res_cav{N_CAV}_at{N_ATOMOS}_t{TIEMPO}_pas{PASOS}"
 
     with open(f'Resultados/{nombre_archivo}.pkl', 'wb') as f:
         pickle.dump(resultados, f)

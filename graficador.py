@@ -16,35 +16,25 @@ if __name__ == "__main__":
     with open(file_path, 'rb') as f:
         resultados = pickle.load(f)
 
-    # Extraer parámetros del nombre del archivo
-    filename = os.path.basename(file_path)
-    match = re.search(r'res_cav(\d+)_at(\d+)_t(\d+)_pas(\d+)_in([\d.]+)_out([\d.]+)_div(\d+)', filename)
     
-    if match:
-        N_CAV_FILE = int(match.group(1))
-        N_ATOMOS_FILE = int(match.group(2))
-        TIEMPO_FILE = int(match.group(3))
-        PASOS_FILE = int(match.group(4))
-        EPSILON_IN_FILE = float(match.group(5))
-        EPSILON_OUT_FILE = float(match.group(6))
-        DIVISIONES_FILE = int(match.group(7))
-        LAMDA_IN_FILE = EPSILON_IN_FILE
-        LAMDA_OUT_FILE = EPSILON_OUT_FILE
-    else:
-        # Si no coincide, usar valores por defecto
-        TIEMPO_FILE = TIEMPO
-        PASOS_FILE = PASOS
-        EPSILON_IN_FILE = EPSILON_IN
-        EPSILON_OUT_FILE = EPSILON_OUT
-        DIVISIONES_FILE = DIVISIONES
-        LAMDA_IN_FILE = LAMDA_IN
-        LAMDA_OUT_FILE = LAMDA_OUT
+    N_CAV_FILE = resultados["parametros"]["N_CAV"]
+    N_ATOMOS_FILE = resultados["parametros"]["N_ATOMOS"]
+    TIEMPO_FILE = resultados["parametros"]["TIEMPO"]
+    PASOS_FILE = resultados["parametros"]["PASOS"]
+    EPSILON_IN_FILE = resultados["parametros"]["EPSILON_IN"]
+    EPSILON_OUT_FILE = resultados["parametros"]["EPSILON_OUT"]
+    DIVISIONES_EPSILON_FILE = resultados["parametros"]["DIVISIONES_EPSILON"]
+    DIVISIONES_LAMDA_FILE = resultados["parametros"]["DIVISIONES_LAMDA"]
+    LAMDA_IN_FILE = resultados["parametros"]["LAMDA_IN"]
+    LAMDA_OUT_FILE = resultados["parametros"]["LAMDA_OUT"]
 
     times = np.linspace(0, TIEMPO_FILE, PASOS_FILE)
 
     fig = plt.figure(figsize=(8, 6))
     ax1 = plt.subplot(111)
     plt.subplots_adjust(bottom=0.25)
+
+    resultados.pop("parametros")
 
     # Valores iniciales - encontrar el más cercano a (1.0, 1.0)
     eps_init, lam_init = 1.0, 1.0
@@ -68,8 +58,8 @@ if __name__ == "__main__":
     ax_eps = plt.axes([0.2, 0.15, 0.6, 0.03])
     ax_lam = plt.axes([0.2, 0.08, 0.6, 0.03])
 
-    slider_eps = Slider(ax_eps, 'epsilon', EPSILON_IN_FILE, EPSILON_OUT_FILE, valinit=closest_init[0], valstep=(EPSILON_OUT_FILE-EPSILON_IN_FILE)/(DIVISIONES_FILE-1))
-    slider_lam = Slider(ax_lam, 'lamda', LAMDA_IN_FILE, LAMDA_OUT_FILE, valinit=closest_init[1], valstep=(LAMDA_OUT_FILE-LAMDA_IN_FILE)/(DIVISIONES_FILE-1))
+    slider_eps = Slider(ax_eps, 'epsilon', EPSILON_IN_FILE, EPSILON_OUT_FILE, valinit=closest_init[0], valstep=(EPSILON_OUT_FILE-EPSILON_IN_FILE)/(DIVISIONES_EPSILON_FILE-1))
+    slider_lam = Slider(ax_lam, 'lamda', LAMDA_IN_FILE, LAMDA_OUT_FILE, valinit=closest_init[1], valstep=(LAMDA_OUT_FILE-LAMDA_IN_FILE)/(DIVISIONES_LAMDA_FILE-1))
 
     def update(val):
         eps = slider_eps.val
