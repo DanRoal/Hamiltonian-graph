@@ -1,12 +1,10 @@
-import customtkinter
+from qutip import *
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 import time
 import concurrent.futures as concurr
 import pickle
 from parametros import *
-from qutip import *
+from tkinter import filedialog
 
 epsilon_val = np.linspace(EPSILON_IN,EPSILON_OUT,DIVISIONES_EPSILON)
 lamda_val = np.linspace(LAMDA_IN,LAMDA_OUT,DIVISIONES_LAMDA)
@@ -29,7 +27,6 @@ J_z = sum(sigmaz_list)
 J_m = sum(sigmam_list)
 J_p = J_m.dag()
 
-
 def compute_single(params):
     """Función serializable para multiprocessing"""
     epsilon, lamda = params
@@ -45,7 +42,10 @@ def compute_single(params):
     return (epsilon, lamda, result.expect[0], result.expect[1])
 
 
+
 if __name__ == "__main__":
+
+    nombre_archivo = filedialog.asksaveasfilename()
 
     param_combinations = [(e, l) for e in epsilon_val for l in lamda_val]
 
@@ -53,6 +53,19 @@ if __name__ == "__main__":
     print("Calculando...")
 
     resultados = {}
+    resultados["parametros"] = {
+        "N_CAV" : N_CAV,
+        "N_ATOMOS" : N_ATOMOS,
+        "TIEMPO" : TIEMPO,
+        "PASOS" : PASOS,
+        "TRABAJADORES" : TRABAJADORES,
+        "EPSILON_IN" : EPSILON_IN,
+        "EPSILON_OUT" : EPSILON_OUT,
+        "LAMDA_IN" : LAMDA_IN,
+        "LAMDA_OUT" : LAMDA_OUT,
+        "DIVISIONES_EPSILON" : DIVISIONES_EPSILON,
+        "DIVISIONES_LAMDA": DIVISIONES_LAMDA,
+        }
     inicio = time.time()
 
     with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES) as executor:
@@ -61,15 +74,14 @@ if __name__ == "__main__":
                 'n_fotones': n_fotones,
                 'j_z': j_z
             }
-            if (i + 1) % DIVISIONES == 0:
+            if (i+1) % 10  == 0:
                 print(f"Completados: {i + 1}/{len(param_combinations)}")
 
     fin = time.time()
     print(f"Tardó {fin - inicio:.3f} segundos")
 
-    nombre_archivo = f"res_cav{N_CAV}_at{N_ATOMOS}_t{TIEMPO}_pas{PASOS}"
 
-    with open(f'Resultados/{nombre_archivo}.pkl', 'wb') as f:
+    with open(f'{nombre_archivo}.pkl', 'wb') as f:
         pickle.dump(resultados, f)
 
     print(f"Resultados guardados en '{nombre_archivo}'")

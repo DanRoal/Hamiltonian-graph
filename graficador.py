@@ -2,12 +2,7 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import numpy as np
-from parametros import *
-import tkinter as tk
 from tkinter import filedialog
-import os
-import re
-
 
 if __name__ == "__main__":
 

@@ -1,28 +1,11 @@
 from graficador import *
 from interface import *
-from qutip import *
 import customtkinter as ctk
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
-import time
-import concurrent.futures as concurr
-import pickle
+from tkinter import *
 from parametros import *
     
 
-root = ctk.CTk()
-root.title("HamGraph")
-
-PX=root.winfo_screenwidth()/2-433.5
-PY=root.winfo_screenheight()/2-350
-root.geometry('480x600+%d+%d'%(PX,PY))        # Tamaño de la ventana centrada
-root.minsize(400,600)
-
-
-basic_button(root, "hola")
-button2 = ctk.CTkButton(root, text="adios")
-button2.grid(row = 0, column = 1)
+root = App()
 
 root.mainloop()
 

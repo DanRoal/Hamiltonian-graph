@@ -1,8 +1,5 @@
 from qutip import *
-import customtkinter as ctk
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 import time
 import concurrent.futures as concurr
 import pickle
@@ -48,6 +45,8 @@ def compute_single(params):
 
 if __name__ == "__main__":
 
+    nombre_archivo = filedialog.asksaveasfilename()
+
     param_combinations = [(e, l) for e in epsilon_val for l in lamda_val]
 
     print(f"Total de cálculos: {len(param_combinations)}")
@@ -81,7 +80,6 @@ if __name__ == "__main__":
     fin = time.time()
     print(f"Tardó {fin - inicio:.3f} segundos")
 
-    nombre_archivo = filedialog.asksaveasfilename()
 
     with open(f'{nombre_archivo}.pkl', 'wb') as f:
         pickle.dump(resultados, f)
