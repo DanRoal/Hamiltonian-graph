@@ -10,7 +10,6 @@ if __name__ == "__main__":
     file_path = filedialog.askopenfilename()
     with open(file_path, 'rb') as f:
         resultados = pickle.load(f)
-
     
     N_CAV_FILE = resultados["parametros"]["N_CAV"]
     N_ATOMOS_FILE = resultados["parametros"]["N_ATOMOS"]
