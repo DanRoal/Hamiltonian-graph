@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
+import parametros
 
 class App(ctk.CTk):
     def __init__(self):
@@ -12,7 +13,7 @@ class App(ctk.CTk):
         self.rowconfigure((0,1), weight=1)
 
         ## Renderizamos los parámetros que necesitamos ##
-        self.parametros_frame = ParametrosFrame(self, parametros=["N_CAV", "N_ATOMOS","TIEMPO","PASOS","TRABAJADORES","EPSILON_IN","EPSILON_OUT","LAMDA_IN","LAMDA_OUT","DIVISIONES_EPSILON","DIVISIONES_LAMDA"])
+        self.parametros_frame = ParametrosFrame(self)
         self.parametros_frame.grid(row=0, column=0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
 
@@ -22,34 +23,50 @@ class App(ctk.CTk):
         self.opciones_predeterminadas_frame.grid(row=1, column = 0, padx=10, pady=(0,2), sticky="ew", columnspan=2)
 
 
-        ## Le pasamos los valores a quitip y generamos el archivo.pkl ##
-        
+        ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
+        self.boton_quitip = ctk.CTkButton(self,text="Calcular", command=self.do_math)
+        self.boton_quitip.grid(row=2,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
+        self.boton_quitip = ctk.CTkButton(self,text="Graficar desde archivo", command=self.render_graph_from_file)
+        self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
-    def do_math():
+    def do_math(self):
         pass
 
-    def render_graph_from_file():
+    def render_graph_from_file(self):
         pass
 
 
 class ParametrosFrame(ctk.CTkFrame):
-    def __init__(self, master, parametros):
+    def __init__(self, master, modulo_parametros = parametros):
         super().__init__(master)
-        self.parametros = parametros
-        self.entradas = []
+        self.entradas = {}
         self.columnconfigure(0, weight=1)
+        self.valores_default = {}
 
-        for i, parametro in enumerate(self.parametros):
-            entrada = ctk.CTkEntry(self, placeholder_text= f'{parametro}', fg_color= '#010101',justify= tk.CENTER)
-            entrada.grid(row=i, column = 0, padx=10, pady=(5,5),sticky="n")
-            self.entradas.append(entrada)
+        ## Obtenemos el diccionario con los nombres de los parámetros ##
+        nombres = getattr(modulo_parametros, "nombres",{})
+
+        for key in nombres:
+            self.valores_default[key] = getattr(modulo_parametros, key, None)
+
+        for i, (parametro, etiqueta) in enumerate(nombres.items()):
+
+            label = ctk.CTkLabel(self, text=etiqueta)
+            label.grid(row=i, column= 0,padx=10, pady=(5,5),sticky="w")
+
+            entrada = ctk.CTkEntry(self, placeholder_text=f"{self.valores_default[parametro]}", fg_color= '#010101',justify= tk.CENTER)
+            entrada.grid(row=i, column = 1, padx=10, pady=(5,5),sticky="ew")
+
+            self.entradas[parametro] = entrada
     
     def get(self):
-        valores_parametros = {}
-        for entrada in self.entradas:
-            if entrada.get() != "":
-                valores_parametros[entrada.cget("placeholder_text")] = entrada.get()
-        return valores_parametros
+        valores = {}
+        for parametro, entrada in self.entradas.items():
+            if entrada.get() == "":
+                valores[parametro] = self.valores_default[parametro]
+            else:
+                valores[parametro] = entrada.get()
+        return valores
 
 class HamiltonianosPredeterminadosFrame(ctk.CTkFrame):
     def __init__(self, master, title, values):
