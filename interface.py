@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
-import parametros
+import parametros_default
 
 class App(ctk.CTk):
     def __init__(self):
@@ -30,14 +30,17 @@ class App(ctk.CTk):
         self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
     def do_math(self):
-        pass
+        with open("parametros.py", "w") as f:
+            for key, val in self.parametros_frame.get().items():
+                f.write(f"{key} = {val}\n")
+        #exec(open("quitip.py").read())
 
     def render_graph_from_file(self):
-        pass
+        exec(open("graficador.py").read())
 
 
 class ParametrosFrame(ctk.CTkFrame):
-    def __init__(self, master, modulo_parametros = parametros):
+    def __init__(self, master, modulo_parametros = parametros_default):
         super().__init__(master)
         self.entradas = {}
         self.columnconfigure(0, weight=1)

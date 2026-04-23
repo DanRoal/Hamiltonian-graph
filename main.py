@@ -2,7 +2,7 @@ from graficador import *
 from interface import *
 import customtkinter as ctk
 from tkinter import *
-from parametros import *
+from parametros_default import *
     
 
 ### Checa parámetros ### 

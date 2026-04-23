@@ -3,7 +3,7 @@ import numpy as np
 import time
 import concurrent.futures as concurr
 import pickle
-from parametros import *
+from parametros_default import *
 from tkinter import filedialog
 
 epsilon_val = np.linspace(EPSILON_IN,EPSILON_OUT,DIVISIONES_EPSILON)
