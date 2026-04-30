@@ -1,6 +1,8 @@
 import customtkinter as ctk
 import tkinter as tk
 import parametros_default
+import matemáticas
+import graficador
 
 class App(ctk.CTk):
     def __init__(self):
@@ -32,11 +34,12 @@ class App(ctk.CTk):
     def do_math(self):
         with open("parametros.py", "w") as f:
             for key, val in self.parametros_frame.get().items():
-                f.write(f"{key} = {val}\n")
-        #exec(open("quitip.py").read())
+                f.write(f"{key} = {int(float(val))}\n")
+            f.write(f"HAMILTONIANO = '{self.opciones_predeterminadas_frame.radio_var.get()}'")
+        matemáticas.calculos()
 
     def render_graph_from_file(self):
-        exec(open("graficador.py").read())
+        graficador.graph()
 
 
 class ParametrosFrame(ctk.CTkFrame):
