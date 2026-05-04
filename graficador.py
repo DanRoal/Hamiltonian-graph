@@ -4,7 +4,7 @@ from matplotlib.widgets import Slider
 import numpy as np
 from tkinter import filedialog
 
-if __name__ == "__main__":
+def graph():
 
     # Cargar resultados precalculados
     file_path = filedialog.askopenfilename()
@@ -13,7 +13,8 @@ if __name__ == "__main__":
     
     N_CAV_FILE = resultados["parametros"]["N_CAV"]
     N_ATOMOS_FILE = resultados["parametros"]["N_ATOMOS"]
-    TIEMPO_FILE = resultados["parametros"]["TIEMPO"]
+    TIEMPO_INICIO_FILE = resultados["parametros"]["TIEMPO_INICIO"]
+    TIEMPO_FINAL_FILE = resultados["parametros"]["TIEMPO_FINAL"]
     PASOS_FILE = resultados["parametros"]["PASOS"]
     EPSILON_IN_FILE = resultados["parametros"]["EPSILON_IN"]
     EPSILON_OUT_FILE = resultados["parametros"]["EPSILON_OUT"]
@@ -22,7 +23,7 @@ if __name__ == "__main__":
     LAMDA_IN_FILE = resultados["parametros"]["LAMDA_IN"]
     LAMDA_OUT_FILE = resultados["parametros"]["LAMDA_OUT"]
 
-    times = np.linspace(0, TIEMPO_FILE, PASOS_FILE)
+    times = np.linspace(TIEMPO_INICIO_FILE, TIEMPO_FINAL_FILE, PASOS_FILE)
 
     fig = plt.figure(figsize=(8, 6))
     ax1 = plt.subplot(111)

@@ -32,11 +32,7 @@ class App(ctk.CTk):
         self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
     def do_math(self):
-        with open("parametros.py", "w") as f:
-            for key, val in self.parametros_frame.get().items():
-                f.write(f"{key} = {int(float(val))}\n")
-            f.write(f"HAMILTONIANO = '{self.opciones_predeterminadas_frame.radio_var.get()}'")
-        matemáticas.calculos()
+        matemáticas.master(**self.parametros_frame.get(), HAMILTONIANO= self.opciones_predeterminadas_frame.radio_var.get())
 
     def render_graph_from_file(self):
         graficador.graph()
@@ -71,7 +67,7 @@ class ParametrosFrame(ctk.CTkFrame):
             if entrada.get() == "":
                 valores[parametro] = self.valores_default[parametro]
             else:
-                valores[parametro] = entrada.get()
+                valores[parametro] = int(entrada.get())
         return valores
 
 class HamiltonianosPredeterminadosFrame(ctk.CTkFrame):

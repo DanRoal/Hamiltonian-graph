@@ -11,8 +11,10 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
            LAMDA_IN = 0,LAMDA_OUT = 2, 
            DIVISIONES_EPSILON = 7, DIVISIONES_LAMDA = 30,
            HAMILTONIANO = 'Dicke'):
-    
+    global oper
     oper = generar_operadores(N_CAV, N_ATOMOS)
+
+    global valores
     valores = {
         "epsilon_val": np.linspace(EPSILON_IN,EPSILON_OUT,DIVISIONES_EPSILON),
         "lamda_val": np.linspace(LAMDA_IN,LAMDA_OUT,DIVISIONES_LAMDA),
@@ -20,10 +22,17 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     }
     #g = lamda / 2*(np.sqrt(N_ATOMOS)) # Acoplamiento
     valores["g_val"] = valores["lamda_val"]/ (2 * np.sqrt(N_ATOMOS))
+
+    global damping
+    damping = []
+    
+    global expected
+    expected = [oper["a"].dag()*oper["a"], oper["J_z"]]
     
     
-    calculos(oper, valores, TRABAJADORES, HAMILTONIANO)
-    pass
+    
+    calculos(N_CAV, N_ATOMOS, TRABAJADORES, HAMILTONIANO)
+
 
 def generar_operadores(N_CAV, N_ATOMOS):
     res = {}
@@ -48,10 +57,7 @@ def generar_operadores(N_CAV, N_ATOMOS):
     
     return res
 
-
-
-
-def compute_single_tavis(params, oper, valores, expected, damping):
+def compute_single_tavis(params):
     """Función serializable para multiprocessing"""
     epsilon, g = params
     
@@ -59,9 +65,9 @@ def compute_single_tavis(params, oper, valores, expected, damping):
     
     result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected)
     
-    return (epsilon, g, result.expect[0], result.expect[1])
+    return (epsilon, g, result)
 
-def compute_single_dicke(params,oper, valores, expected, damping):
+def compute_single_dicke(params):
     """Función serializable para multiprocessing"""
     epsilon, g = params
     
@@ -69,9 +75,17 @@ def compute_single_dicke(params,oper, valores, expected, damping):
     
     result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected)
     
-    return (epsilon, g, result.expect[0], result.expect[1])
+    return (epsilon, g, result)
 
-def calculos(operadores, valores, TRABAJADORES, HAMILTONIANO):
+def init_trabajador(oper_data, valores_data, expected_data, damping_data):
+    global oper, valores, expected, damping
+    oper = oper_data
+    valores = valores_data
+    expected = expected_data
+    damping = damping_data
+
+
+def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
 
     nombre_archivo = filedialog.asksaveasfilename()
 
@@ -79,40 +93,46 @@ def calculos(operadores, valores, TRABAJADORES, HAMILTONIANO):
 
     print(f"Total de cálculos: {len(param_combinations)}")
     print("Calculando...")
-
+    
     resultados = {}
     resultados["parametros"] = {
-        "N_CAV" : N_CAV,
-        "N_ATOMOS" : N_ATOMOS,
-        "TIEMPO" : TIEMPO,
-        "PASOS" : PASOS,
-        "TRABAJADORES" : TRABAJADORES,
-        "EPSILON_IN" : EPSILON_IN,
-        "EPSILON_OUT" : EPSILON_OUT,
-        "LAMDA_IN" : LAMDA_IN,
-        "LAMDA_OUT" : LAMDA_OUT,
-        "DIVISIONES_EPSILON" : DIVISIONES_EPSILON,
-        "DIVISIONES_LAMDA": DIVISIONES_LAMDA,
+        "N_CAV" : N_cav,
+        "N_ATOMOS" : N_atomos,
+        "TIEMPO_INICIO": int(valores["lista_tiempos"][0]),
+        "TIEMPO_FINAL": int(valores["lista_tiempos"][-1]),
+        "PASOS": len(valores["lista_tiempos"]),
+        "EPSILON_IN" : int(valores["epsilon_val"][0]),
+        "EPSILON_OUT" : int(valores["epsilon_val"][-1]),
+        "DIVISIONES_EPSILON" : len(valores["epsilon_val"]),
+        "LAMDA_IN" : int(valores["lamda_val"][0]),
+        "LAMDA_OUT" : int(valores["lamda_val"][-1]),
+        "DIVISIONES_LAMDA": len(valores["lamda_val"]),
+        "HAMILTONIANO": HAMILTONIANO
         }
     inicio = time.time()
+    
 
     if HAMILTONIANO == "Tavis-Cummings":
-        with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES) as executor:
+        with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES, 
+                                         initializer=init_trabajador,
+                                         initargs= (oper, valores, expected, damping)) as executor:
 
-            for i, (epsilon, lamda, n_fotones, j_z) in enumerate(executor.map(compute_single_tavis, param_combinations)):
-                resultados[(epsilon, lamda)] = {
-                    'n_fotones': n_fotones,
-                    'j_z': j_z
+            for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_tavis, param_combinations)):
+                resultados[(epsilon, g)] = {
+                    'n_fotones': resultados_q.expect[0],
+                    'j_z': resultados_q.expect[1]
                 }
                 if (i+1) % 10  == 0:
                     print(f"Completados: {i + 1}/{len(param_combinations)}")
     elif HAMILTONIANO == "Dicke":
-        with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES) as executor:
+        with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES, 
+                                         initializer=init_trabajador,
+                                         initargs= (oper, valores, expected, damping)) as executor:
 
-            for i, (epsilon, lamda, n_fotones, j_z) in enumerate(executor.map(compute_single_dicke, param_combinations)):
-                resultados[(epsilon, lamda)] = {
-                    'n_fotones': n_fotones,
-                    'j_z': j_z
+            for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_dicke, param_combinations)):
+                resultados[(epsilon, g)] = {
+                    'n_fotones': resultados_q.expect[0],
+                    'j_z': resultados_q.expect[1]
                 }
                 if (i+1) % 10  == 0:
                     print(f"Completados: {i + 1}/{len(param_combinations)}")
