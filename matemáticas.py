@@ -28,6 +28,8 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     
     global expected
     expected = [oper["a"].dag()*oper["a"], oper["J_z"]]
+    global expected_names
+    expected_names = ["⟨n⟩ (Número de fotones)", "⟨Jz⟩ (Inversión atómica)"]
 
     H_test = oper["a"].dag() * oper["a"] + (0/2) * oper["J_z"] + (0.1/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     print(f"Dimensión Hilbert: {H_test.dims[0]}")
@@ -78,11 +80,12 @@ def compute_single_dicke(params):
     
     return (epsilon, g, result)
 
-def init_trabajador(oper_data, valores_data, expected_data, damping_data):
-    global oper, valores, expected, damping
+def init_trabajador(oper_data, valores_data, expected_data, expected_names_data, damping_data):
+    global oper, valores, expected, expected_names, damping
     oper = oper_data
     valores = valores_data
     expected = expected_data
+    expected_names = expected_names_data
     damping = damping_data
 
 
@@ -110,6 +113,7 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
         "DIVISIONES_LAMDA": len(valores["lamda_val"]),
         "HAMILTONIANO": HAMILTONIANO,
         "DAMPING_OPERATORS": [str(op) for op in damping] if damping else ["Ninguno"],
+        "EXPECTED_NAMES": expected_names,
         }
     inicio = time.time()
     
@@ -117,7 +121,7 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
     if HAMILTONIANO == "Tavis-Cummings":
         with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES, 
                                          initializer=init_trabajador,
-                                         initargs= (oper, valores, expected, damping)) as executor:
+                                         initargs= (oper, valores, expected, expected_names, damping)) as executor:
 
             for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_tavis, param_combinations)):
                 resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
@@ -127,7 +131,7 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
     elif HAMILTONIANO == "Dicke":
         with concurr.ProcessPoolExecutor(max_workers=TRABAJADORES, 
                                          initializer=init_trabajador,
-                                         initargs= (oper, valores, expected, damping)) as executor:
+                                         initargs= (oper, valores, expected, expected_names, damping)) as executor:
 
             for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_dicke, param_combinations)):
                 resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
