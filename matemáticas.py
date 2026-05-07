@@ -64,7 +64,7 @@ def compute_single_tavis(params):
     
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] * oper["J_p"] + oper["a"].dag() * oper["J_m"])
     
-    opts = Options(nsteps=500000, rtol=1e-10, atol=1e-12, method='adams')
+    opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
     result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected, options=opts)
     
     return (epsilon, g, result)
@@ -75,7 +75,7 @@ def compute_single_dicke(params):
     
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     
-    opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12, "method":'adams'}
+    opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
     result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected, options=opts)
     
     return (epsilon, g, result)
