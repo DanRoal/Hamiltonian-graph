@@ -10,7 +10,7 @@ try:
 except:
     TRABAJADORES = 2
 
-EPSILON_IN = 0
+EPSILON_IN = 0.1
 EPSILON_OUT = 2
 LAMDA_IN = 0
 LAMDA_OUT = 2

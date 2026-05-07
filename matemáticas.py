@@ -28,6 +28,10 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     
     global expected
     expected = [oper["a"].dag()*oper["a"], oper["J_z"]]
+
+    H_test = oper["a"].dag() * oper["a"] + (0/2) * oper["J_z"] + (0.1/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
+    print(f"Dimensión Hilbert: {H_test.dims[0]}")
+    print(f"Autovalores min-max: {H_test.eigenenergies()[[0,-1]]}")
     
     calculos(N_CAV, N_ATOMOS, TRABAJADORES, HAMILTONIANO)
 
@@ -58,7 +62,8 @@ def compute_single_tavis(params):
     
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] * oper["J_p"] + oper["a"].dag() * oper["J_m"])
     
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected)
+    opts = Options(nsteps=500000, rtol=1e-10, atol=1e-12, method='adams')
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected, options=opts)
     
     return (epsilon, g, result)
 
@@ -68,7 +73,8 @@ def compute_single_dicke(params):
     
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected)
+    opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12, "method":'adams'}
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected, options=opts)
     
     return (epsilon, g, result)
 
@@ -102,7 +108,8 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
         "LAMDA_IN" : int(valores["lamda_val"][0]),
         "LAMDA_OUT" : int(valores["lamda_val"][-1]),
         "DIVISIONES_LAMDA": len(valores["lamda_val"]),
-        "HAMILTONIANO": HAMILTONIANO
+        "HAMILTONIANO": HAMILTONIANO,
+        "DAMPING_OPERATORS": [str(op) for op in damping] if damping else ["Ninguno"],
         }
     inicio = time.time()
     
@@ -113,10 +120,8 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
                                          initargs= (oper, valores, expected, damping)) as executor:
 
             for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_tavis, param_combinations)):
-                resultados[(epsilon, g)] = {
-                    'n_fotones': resultados_q.expect[0],
-                    'j_z': resultados_q.expect[1]
-                }
+                resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
+
                 if (i+1) % 10  == 0:
                     print(f"Completados: {i + 1}/{len(param_combinations)}")
     elif HAMILTONIANO == "Dicke":
@@ -125,10 +130,8 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
                                          initargs= (oper, valores, expected, damping)) as executor:
 
             for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_dicke, param_combinations)):
-                resultados[(epsilon, g)] = {
-                    'n_fotones': resultados_q.expect[0],
-                    'j_z': resultados_q.expect[1]
-                }
+                resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
+
                 if (i+1) % 10  == 0:
                     print(f"Completados: {i + 1}/{len(param_combinations)}")
 
