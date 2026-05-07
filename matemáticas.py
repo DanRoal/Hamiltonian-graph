@@ -29,31 +29,26 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     global expected
     expected = [oper["a"].dag()*oper["a"], oper["J_z"]]
     
-    
-    
     calculos(N_CAV, N_ATOMOS, TRABAJADORES, HAMILTONIANO)
 
 
 def generar_operadores(N_CAV, N_ATOMOS):
     res = {}
+    j = N_ATOMOS/2
     
-    a = tensor([destroy(N_CAV)] + [qeye(2) for _ in range(0,  N_ATOMOS)])
+    a = tensor(destroy(N_CAV), qeye(int(2*j +1)))
     res["a"] = a
-    
-    #Definimos a la lista de los operadores individuales:
-    sigmaz_list = [tensor([qeye(N_CAV)] + [sigmaz() if j == i else qeye(2) for j in range(N_ATOMOS)]) for i in range(N_ATOMOS)]
-    sigmam_list = [tensor([qeye(N_CAV)] + [sigmam() if j == i else qeye(2) for j in range(N_ATOMOS)]) for i in range(N_ATOMOS)]
-    sigmap_list = [tensor([qeye(N_CAV)] + [sigmap() if j == i else qeye(2) for j in range(N_ATOMOS)]) for i in range(N_ATOMOS)]
-    
+
     #Ahora definimos a los operadores colectivos
-    J_z = sum(sigmaz_list)
-    J_m = sum(sigmam_list)
-    J_p = J_m.dag()
+    J_z = tensor(qeye(N_CAV), jmat(j, "z"))
+    J_p = tensor(qeye(N_CAV), jmat(j, "+"))
+    J_m = tensor(qeye(N_CAV), jmat(j, "-"))
     res.update({"J_z":J_z, "J_m":J_m, "J_p":J_p})
 
     #Generamos estado inicial
-    estado_inicial = ket2dm(tensor([basis(N_CAV, 0)] + [basis(2, 0) for _ in range(N_ATOMOS)]))
-    res["estado inicial"] =  estado_inicial
+    estado_inicial_cavidad = basis(N_CAV, 0)
+    estado_inicial_atomico = basis(int(2*j +1), 0)
+    res["estado inicial"] =  tensor(estado_inicial_cavidad,estado_inicial_atomico)
     
     return res
 
@@ -71,7 +66,7 @@ def compute_single_dicke(params):
     """Función serializable para multiprocessing"""
     epsilon, g = params
     
-    H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag())(oper["J_p"] + oper["J_m"])
+    H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     
     result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected)
     
