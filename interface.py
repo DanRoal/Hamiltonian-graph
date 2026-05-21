@@ -38,7 +38,7 @@ class App(ctk.CTk):
         graficador.graph()
 
 
-class ParametrosFrame(ctk.CTkFrame):
+class ParametrosFrame(ctk.CTkScrollableFrame):
     def __init__(self, master, modulo_parametros = parametros_default):
         super().__init__(master)
         self.entradas = {}

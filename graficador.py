@@ -1,35 +1,23 @@
-import os
-import sys
-from io import StringIO
-
-# Suprimir warnings de Qt
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = ''
-os.environ['QT_DEBUG_PLUGINS'] = '0'
-
-# Redirigir stderr temporalmente para suprimir warnings de Qt
-old_stderr = sys.stderr
-sys.stderr = StringIO()
-
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 from tkinter import filedialog
 import customtkinter as ctk
-import tkinter as tk
+from interface_graficador import VentanaPrincipal
 
-# Restaurar stderr
-sys.stderr = old_stderr
+def graficar():
+    ventana = VentanaPrincipal()
+    ventana.mainloop()
 
 def graph():
     # Cargar resultados precalculados
     file_path = filedialog.askopenfilename()
     if not file_path:
         return
-        
     with open(file_path, 'rb') as f:
         resultados = pickle.load(f)
-    
+
     params = resultados["parametros"]
     resultados.pop("parametros")
     

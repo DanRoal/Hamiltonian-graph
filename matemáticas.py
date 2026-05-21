@@ -27,9 +27,12 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     damping = []
     
     global expected
-    expected = [oper["a"].dag()*oper["a"], oper["J_z"]]
+
+    expected = [oper["a"].dag()*oper["a"], oper["J_z"],(1/2)*(oper["a"].dag()*oper["a"] + oper["J_z"])]
+    #Parámetro de mandel
+
     global expected_names
-    expected_names = ["⟨n⟩ (Número de fotones)", "⟨Jz⟩ (Inversión atómica)"]
+    expected_names = ["⟨n⟩ (Número de fotones)", "⟨Jz⟩ (Inversión atómica)", "pob excitada"]
 
     H_test = oper["a"].dag() * oper["a"] + (0/2) * oper["J_z"] + (0.1/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     print(f"Dimensión Hilbert: {H_test.dims[0]}")
