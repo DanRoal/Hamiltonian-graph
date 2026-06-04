@@ -5,7 +5,7 @@ import concurrent.futures as concurr
 import pickle
 from tkinter import filedialog
 
-def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 250,
+def master(N_CAV = 8, N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 250,
            TRABAJADORES = 8,
            EPSILON_IN = 0,EPSILON_OUT = 2,
            LAMDA_IN = 0,LAMDA_OUT = 2, 
@@ -27,12 +27,23 @@ def master(N_CAV = 8,N_ATOMOS = 4,TIEMPO_INICIO= 0, TIEMPO_FINAL= 100,PASOS = 25
     damping = []
     
     global expected
-
-    expected = [oper["a"].dag()*oper["a"], oper["J_z"],(1/2)*(oper["a"].dag()*oper["a"] + oper["J_z"])]
+    expected = [oper["a"].dag()*oper["a"],
+                oper["J_z"],
+                (1/2)*(oper["a"].dag()*oper["a"] + oper["J_z"]), 
+                (oper["a"].dag()*oper["a"])**2,
+                oper["J_x"],
+                oper["J_x"]**2]
     #Parámetro de mandel
 
     global expected_names
-    expected_names = ["⟨n⟩ (Número de fotones)", "⟨Jz⟩ (Inversión atómica)", "pob excitada"]
+    expected_names = ["⟨n⟩ (Número de fotones)", 
+                      "⟨Jz⟩ (Inversión atómica)", 
+                      "pob excitada",
+                      "⟨n^2⟩",
+                      "⟨J_x⟩",
+                      "⟨(J_x)^2⟩",
+                      "Parámetro Mandel",
+                      "Parámetro Compresión",]
 
     H_test = oper["a"].dag() * oper["a"] + (0/2) * oper["J_z"] + (0.1/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     print(f"Dimensión Hilbert: {H_test.dims[0]}")
@@ -52,7 +63,8 @@ def generar_operadores(N_CAV, N_ATOMOS):
     J_z = tensor(qeye(N_CAV), jmat(j, "z"))
     J_p = tensor(qeye(N_CAV), jmat(j, "+"))
     J_m = tensor(qeye(N_CAV), jmat(j, "-"))
-    res.update({"J_z":J_z, "J_m":J_m, "J_p":J_p})
+    J_x = tensor(qeye(N_CAV), jmat(j, "x"))
+    res.update({"J_z":J_z, "J_m":J_m, "J_p":J_p, "J_x":J_x})
 
     #Generamos estado inicial
     estado_inicial_cavidad = basis(N_CAV, 0)
@@ -150,3 +162,24 @@ def calculos(N_cav, N_atomos, TRABAJADORES, HAMILTONIANO):
         pickle.dump(resultados, f)
 
     print(f"Resultados guardados en '{nombre_archivo}'")
+
+def calcular_mandel(Resultado:dict[result.expect]):
+    for pareja in Resultado:
+        n = pareja["expect_values"][0]
+        n2 = pareja["expect_values"][3]
+        param_mandel = (n2 - n**2 - n)/n 
+        np.append(pareja["expect_values"], param_mandel)
+    
+def calcular_compresion(Resultado:dict[result.expect], j):
+    for pareja in Resultado:
+        Jx = pareja["expect_values"][4]
+        Jx2 = pareja["expect_values"][5]
+        
+        # Squeezing sin normalizar: sqrt(2*j) * sqrt(<J_x^2> - <J_x>^2)
+        delta_jx_squared = np.maximum(Jx2 - Jx**2, 0)
+        delta_jx = np.sqrt(delta_jx_squared)
+        param_compresion = np.sqrt(2*j) * delta_jx
+        np.append(pareja["expect_values"], param_compresion)
+
+    
+

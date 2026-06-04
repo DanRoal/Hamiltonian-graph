@@ -24,16 +24,14 @@ class VentanaPrincipal(ctk.CTk):
         info_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
         ## Colocamos el fame con pestañas ##
-        tabs_frame = PestañasFrame(self)
+        tabs_frame = Pestañas(self)
         tabs_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
-
-
 
 
 class SlidersFrame(ctk.CTkFrame):
     pass
 
-class PestañasFrame(ctk.CTkTabview):
+class Pestañas(ctk.CTkTabview):
     pass
 
 class InfoFrame(ctk.CTkFrame):

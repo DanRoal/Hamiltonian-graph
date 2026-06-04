@@ -79,6 +79,8 @@ def graph():
     tabview.grid(row=0, column=0, sticky="nsew")
     tabview.columnconfigure(0, weight=1)
     
+    calcular_mandel(resultados)
+    calcular_compresion(resultados, N_ATOMOS/2)
     # Obtener número de operadores esperados
     sample_data = resultados[list(resultados.keys())[0]]
     
@@ -96,20 +98,27 @@ def graph():
         operator_names = EXPECTED_NAMES
     else:
         operator_names = [f"Operador {i+1}" for i in range(n_operators)]
-    
-    # Crear datos para minmax
-    all_values = []
-    for data in resultados.values():
-        if use_new_format:
-            for arr in data['expect_values']:
-                all_values.extend(arr)
+
+    # Crear datos para minmax por operador
+    operator_ranges = {}
+    for op_idx in range(n_operators):
+        op_values = []
+        for data in resultados.values():
+            if use_new_format:
+                op_values.extend(data['expect_values'][op_idx])
+            else:
+                if op_idx == 0:
+                    op_values.extend(data['n_fotones'])
+                else:
+                    op_values.extend(data['j_z'])
+        
+        if op_values:
+            min_val = min(op_values)
+            max_val = max(op_values)
+            margen = 0.1 * (max_val - min_val) if (max_val - min_val) != 0 else 0.5
+            operator_ranges[op_idx] = (min_val - margen, max_val + margen)
         else:
-            all_values.extend(data['n_fotones'])
-            all_values.extend(data['j_z'])
-    
-    min_val = min(all_values)
-    max_val = max(all_values)
-    margen = 0.05 * (max_val - min_val) if (max_val - min_val) != 0 else 0.5
+            operator_ranges[op_idx] = (0, 1)
     
     # Valores iniciales
     eps_init, g_init = 1.0, 0.25
@@ -237,7 +246,7 @@ def graph():
 
         ax.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
         ax.set_ylabel(f"{operator_names[op_idx]}", fontsize=15, color='black', fontweight='bold')
-        ax.set_ylim(min_val - margen, max_val + margen)
+        ax.set_ylim(operator_ranges[op_idx])
         
         # Mejorar grid
         ax.grid(True, alpha=0.3, color='gray', linestyle='--', linewidth=0.7)
@@ -256,7 +265,7 @@ def graph():
         canvas.draw()
         fig.tight_layout()
         canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=8, pady=8)    
-    
+
     # Frame para sliders
     slider_frame = ctk.CTkFrame(root, fg_color="gray25", corner_radius=8)
     slider_frame.grid(row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
@@ -333,6 +342,28 @@ def graph():
                 canvases['comparativa'].draw_idle()
     
     root.mainloop()
+
+def calcular_mandel(Resultado:dict):
+    for pareja in Resultado:
+        n = Resultado[pareja]["expect_values"][0]
+        n2 = Resultado[pareja]["expect_values"][3]
+        param_mandel = (n2 - n**2 - n)/n 
+        param_mandel = np.nan_to_num(param_mandel, nan=0.0)
+        Resultado[pareja]["expect_values"] = np.vstack([Resultado[pareja]["expect_values"], param_mandel])
+    
+def calcular_compresion(Resultado:dict, j:float):
+    for pareja in Resultado:
+        Jx = Resultado[pareja]["expect_values"][4]
+        Jx2 = Resultado[pareja]["expect_values"][5]
+        
+        # Squeezing sin normalizar: sqrt(2*j) * sqrt(<J_x^2> - <J_x>^2)
+        # Evitar errores numéricos: asegurar que el argumento de sqrt no sea negativo
+        delta_jx_squared = np.maximum(Jx2 - Jx**2, 0)
+        delta_jx = np.sqrt(delta_jx_squared)
+        
+        param_compresion = np.sqrt(2*j) * delta_jx
+        Resultado[pareja]["expect_values"] = np.vstack([Resultado[pareja]["expect_values"], param_compresion])
+
 
 if __name__ == "__main__":
     graph()
