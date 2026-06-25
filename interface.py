@@ -9,20 +9,31 @@ class App(ctk.CTk):
         super().__init__()
     
         self.title("HamGraph")
-        self.geometry('480x600')
-        self.minsize(400,600)
+        self.geometry('480x800')
+        self.minsize(400,700)
         self.columnconfigure((0,1), weight=1)
         self.rowconfigure((0,1), weight=1)
 
         ## Renderizamos los parámetros que necesitamos ##
         self.parametros_frame = ParametrosFrame(self)
-        self.parametros_frame.grid(row=0, column=0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
+        self.parametros_frame.grid(row=0, column=0, padx=10, pady=(5, 5), sticky="new",columnspan=2)
 
 
-        ## Renderizamos las opciones predeterminadas: ##
-        self.hamiltonianos = ["Tavis-Cummings", "Dicke"]
-        self.opciones_predeterminadas_frame = HamiltonianosPredeterminadosFrame(self, title="Opciones", values=self.hamiltonianos)
-        self.opciones_predeterminadas_frame.grid(row=1, column = 0, padx=10, pady=(0,2), sticky="ew", columnspan=2)
+        ## Renderizamos las opciones de hamiltonianos predeterminadas: ##
+        self.hamiltonianos = {"Tavis-Cummings": "Tavis-Cummings",
+                               "Dicke": "Dicke"}
+        self.hamiltonianos_frame = OpcionesPredeterminadasFrame(self, title="Hamiltonianos", values=self.hamiltonianos)
+        self.hamiltonianos_frame.grid(row=1, column = 0, padx=10, pady=(0,2), sticky="news", columnspan=1)
+
+        ## Renderizamos las opciones de estados iniciales ##
+        self.estados_iniciales = {"|ψ_0⟩ = |0⟩⊗|j,+j⟩": "+j",
+                                "|ψ_0⟩ = |\\alpha⟩⊗|j,-j⟩": "alpha",
+                                "|ψ_0⟩ = |up⟩⊗|j,-j⟩":"-j",
+                                "|ψ_0⟩ = |up⟩⊗|j,-j⟩":"-j",
+                                "|ψ_0⟩=|0⟩⊗(1/2^(1/2))(|j,j⟩+|j,j-1⟩)": "superpuesto",
+                                "alph + beta": "coherente superpuesto"}
+        self.estados_iniciales_frame = OpcionesPredeterminadasFrame(self, title="Estado inicial", values= self.estados_iniciales)
+        self.estados_iniciales_frame.grid(row=1, column=1,pady=(0,2), sticky="news", columnspan=1)
 
 
         ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
@@ -32,13 +43,13 @@ class App(ctk.CTk):
         self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
     def do_math(self):
-        matemáticas.master(**self.parametros_frame.get(), HAMILTONIANO= self.opciones_predeterminadas_frame.radio_var.get())
+        matemáticas.master(HAMILTONIANO=self.hamiltonianos_frame.radio_var.get(), inicial=self.estados_iniciales_frame.radio_var.get(), **self.parametros_frame.get())
 
     def render_graph_from_file(self):
         graficador.graph()
 
 
-class ParametrosFrame(ctk.CTkScrollableFrame):
+class ParametrosFrame(ctk.CTkFrame):
     def __init__(self, master, modulo_parametros = parametros_default):
         super().__init__(master)
         self.entradas = {}
@@ -70,12 +81,11 @@ class ParametrosFrame(ctk.CTkScrollableFrame):
                 valores[parametro] = int(entrada.get())
         return valores
 
-class HamiltonianosPredeterminadosFrame(ctk.CTkFrame):
-    def __init__(self, master, title, values):
+class OpcionesPredeterminadasFrame(ctk.CTkFrame):
+    def __init__(self, master, title:str, values:dict):
         super().__init__(master)
         self.title = title
-        self.values = values
-        self.radio_var = tk.StringVar(value=None)
+        self.radio_var = tk.StringVar(value=list(values.values())[0])
         self.options = []
         self.columnconfigure(0, weight=1)
 
@@ -83,8 +93,8 @@ class HamiltonianosPredeterminadosFrame(ctk.CTkFrame):
         self.title = ctk.CTkLabel(self, text=self.title, fg_color="gray30", corner_radius=6)
         self.title.grid(row=0, column=0, padx=10, pady=(5,5), sticky="ew")
 
-        for i, value in enumerate(self.values):
-            option = ctk.CTkRadioButton(self, text=f"{value}", command=self.radiobutton_event, variable= self.radio_var, value=value)
+        for i, key in enumerate(values):
+            option = ctk.CTkRadioButton(self, text=f"{key}", command=self.radiobutton_event, variable= self.radio_var, value=values[key])
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="wn")
 
     def radiobutton_event(self):

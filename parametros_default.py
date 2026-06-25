@@ -1,10 +1,10 @@
 import os
 
-N_CAV = 8 #(truncado)
-N_ATOMOS =4
+N_CAV = 20 #(truncado)
+N_ATOMOS = 5
 TIEMPO_INICIO = 0
-TIEMPO_FINAL = 100
-PASOS = 250
+TIEMPO_FINAL = 50
+PASOS = 500
 try:
     TRABAJADORES = int(os.process_cpu_count()/2)
 except:
@@ -15,8 +15,8 @@ EPSILON_OUT = 2
 LAMDA_IN = 0
 LAMDA_OUT = 2
 
-DIVISIONES_EPSILON = 7
-DIVISIONES_LAMDA = 30
+DIVISIONES_EPSILON = 11
+DIVISIONES_LAMDA = 50
 
 nombres = {
     "N_CAV": "Número de fotones en la cavidad",
