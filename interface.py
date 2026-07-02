@@ -46,7 +46,7 @@ class App(ctk.CTk):
         matemáticas.master(HAMILTONIANO=self.hamiltonianos_frame.radio_var.get(), inicial=self.estados_iniciales_frame.radio_var.get(), **self.parametros_frame.get())
 
     def render_graph_from_file(self):
-        graficador.graph()
+        graficador.graph(parent=self)
 
 
 class ParametrosFrame(ctk.CTkFrame):

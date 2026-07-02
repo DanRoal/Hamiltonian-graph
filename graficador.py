@@ -99,12 +99,16 @@ class PlotsPanel(ctk.CTkFrame):
             ax.set_ylim(operator_ranges[op_idx])
             ax.grid(True, alpha=0.3, color='gray', linestyle='--', linewidth=0.7)
             ax.tick_params(colors='black', labelsize=12)
+            ax.ticklabel_format(style='plain', useOffset=False)
+            ax.yaxis.offsetText.set_visible(False)
 
             for spine in ax.spines.values():
                 spine.set_edgecolor('#cccccc')
                 spine.set_linewidth(1.2)
 
             ax.set_title(f"{name} | ε={self.closest_init[0]:.3f}, g={self.closest_init[1]:.3f}", color='black', fontsize=15, fontweight='bold', pad=15)
+
+            self._setup_hover_cursor(fig, ax, line)
 
             canvas = FigureCanvasTkAgg(fig, master=tab)
             self.canvases[op_idx] = canvas
@@ -115,8 +119,14 @@ class PlotsPanel(ctk.CTkFrame):
         # comparative tab: only add if both indices found
         fotones_idx = next((i for i, n in enumerate(self.operator_names) if 'fotones' in n.lower()), None)
         inv_idx = next((i for i, n in enumerate(self.operator_names) if 'inversión' in n.lower() or 'inversion' in n.lower()), None)
+        # store indices for later safe updates
+        self.fotones_idx = fotones_idx
+        self.inv_idx = inv_idx
         if fotones_idx is not None and inv_idx is not None:
             tab_comp = self.tabview.add("Comparativa")
+            # ensure the tab expands to fill available space
+            tab_comp.columnconfigure(0, weight=1)
+            tab_comp.rowconfigure(0, weight=1)
             fig_c, ax1 = plt.subplots(figsize=(12, 6), facecolor='white')
             ax1.set_facecolor('white')
             data_c = self.resultados[self.closest_init]
@@ -124,11 +134,18 @@ class PlotsPanel(ctk.CTkFrame):
             ax1.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
             ax1.set_ylabel("⟨n⟩ (Número de fotones)", fontsize=15, color='#1f77b4', fontweight='bold')
             ax1.tick_params(axis='y', labelcolor='#1f77b4', labelsize=12)
+            ax1.ticklabel_format(style='plain', useOffset=False)
+            ax1.yaxis.offsetText.set_visible(False)
+
+            self._setup_hover_cursor(fig_c, ax1, line_f)
 
             ax2 = ax1.twinx()
             line_i, = ax2.plot(self.times, data_c['expect_values'][inv_idx], color='#d62728', linewidth=2.5, antialiased=True, linestyle='--', label='Inversión')
             ax2.set_ylabel("⟨J_z⟩ (Inversión atómica)", fontsize=15, color='#d62728', fontweight='bold')
             ax2.tick_params(axis='y', labelcolor='#d62728', labelsize=12)
+            ax2.ticklabel_format(style='plain', useOffset=False)
+            ax2.yaxis.offsetText.set_visible(False)
+            self._setup_hover_cursor(fig_c, ax2, line_i)
 
             ax1.set_title(f"Intercambio de energía | ε={self.closest_init[0]:.3f}, g={self.closest_init[1]:.3f}", color='black', fontsize=15, fontweight='bold', pad=15)
 
@@ -169,6 +186,50 @@ class PlotsPanel(ctk.CTkFrame):
 
         return operator_ranges
 
+    def _setup_hover_cursor(self, fig, ax, line):
+        xdata = self.times
+        ydata = line.get_ydata()
+        annotation = ax.annotate(
+            "",
+            xy=(0, 0),
+            xytext=(15, 15),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.85),
+            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0"),
+        )
+        annotation.set_visible(False)
+
+        cross_h = ax.axhline(0, color='gray', linestyle='--', linewidth=1, alpha=0.6, visible=False)
+        cross_v = ax.axvline(0, color='gray', linestyle='--', linewidth=1, alpha=0.6, visible=False)
+
+        def on_motion(event):
+            if event.inaxes != ax:
+                annotation.set_visible(False)
+                cross_h.set_visible(False)
+                cross_v.set_visible(False)
+                fig.canvas.draw_idle()
+                return
+
+            x = event.xdata
+            if x is None:
+                return
+
+            idx = np.abs(xdata - x).argmin()
+            x_val = xdata[idx]
+            y_val = ydata[idx]
+
+            annotation.xy = (x_val, y_val)
+            annotation.set_text(f"x={x_val:.4f}\ny={y_val:.6f}")
+            annotation.set_visible(True)
+
+            cross_h.set_ydata([y_val, y_val])
+            cross_v.set_xdata([x_val, x_val])
+            cross_h.set_visible(True)
+            cross_v.set_visible(True)
+            fig.canvas.draw_idle()
+
+        fig.canvas.mpl_connect("motion_notify_event", on_motion)
+
     def update_plots(self, closest_key):
         data = self.resultados[closest_key]
         for op_idx in range(len(self.operator_names)):
@@ -176,11 +237,10 @@ class PlotsPanel(ctk.CTkFrame):
             self.axes[op_idx].set_title(f"{self.operator_names[op_idx]} | ε={closest_key[0]:.3f}, g={closest_key[1]:.3f}")
             self.canvases[op_idx].draw_idle()
 
-        if 'comparativa' in self.canvases:
-            fot_idx = next(i for i,n in enumerate(self.operator_names) if 'fotones' in n.lower())
-            inv_idx = next(i for i,n in enumerate(self.operator_names) if 'inversión' in n.lower() or 'inversion' in n.lower())
-            self.lines['comparativa_fotones'].set_ydata(data['expect_values'][fot_idx])
-            self.lines['comparativa_inversion'].set_ydata(data['expect_values'][inv_idx])
+        # update comparative only if it exists and indices were found at build time
+        if 'comparativa' in self.canvases and getattr(self, 'fotones_idx', None) is not None and getattr(self, 'inv_idx', None) is not None:
+            self.lines['comparativa_fotones'].set_ydata(data['expect_values'][self.fotones_idx])
+            self.lines['comparativa_inversion'].set_ydata(data['expect_values'][self.inv_idx])
             self.canvases['comparativa'].draw_idle()
 
 
@@ -223,11 +283,12 @@ class SlidersPanel(ctk.CTkFrame):
         self.on_change(closest)
 
 
-class GraphApp(ctk.CTk):
-    def __init__(self, resultados: dict, params: dict):
-        super().__init__()
+class GraphApp:
+    def __init__(self, resultados: dict, params: dict, parent=None):
         self.resultados = resultados
         self.params = params
+        self._own_root = parent is None
+        self.window = ctk.CTk() if parent is None else ctk.CTkToplevel(parent)
         self._prepare_data()
         self._build_ui()
 
@@ -244,20 +305,24 @@ class GraphApp(ctk.CTk):
         self.times = np.linspace(self.params["TIEMPO_INICIO"], self.params["TIEMPO_FINAL"], self.params["PASOS"])
 
     def _build_ui(self):
-        self.title("Visualizador de Resultados QuTiP")
-        self.geometry("1400x900")
-        self.minsize(1000, 700)
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=0)
-        self.rowconfigure(1, weight=1)
-        self.rowconfigure(2, weight=0)
+        self.window.title("Visualizador de Resultados QuTiP")
+        self.window.geometry("1400x900")
+        self.window.minsize(1000, 700)
+        self.window.columnconfigure(0, weight=1)
+        self.window.rowconfigure(0, weight=0)
+        self.window.rowconfigure(1, weight=1)
+        self.window.rowconfigure(2, weight=0)
 
-        self.info = InfoPanel(self, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
-        self.plots = PlotsPanel(self, self.resultados, self.operator_names, self.times, row=1, column=0, padx=15, pady=(10, 15), sticky="nsew")
-        self.sliders = SlidersPanel(self, self.resultados, on_change=self._on_change, closest_init=self.plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
+        self.info = InfoPanel(self.window, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
+        self.plots = PlotsPanel(self.window, self.resultados, self.operator_names, self.times, row=1, column=0, padx=15, pady=(10, 15), sticky="nsew")
+        self.sliders = SlidersPanel(self.window, self.resultados, on_change=self._on_change, closest_init=self.plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
 
     def _on_change(self, closest_key):
         self.plots.update_plots(closest_key)
+
+    def mainloop(self):
+        if self._own_root:
+            self.window.mainloop()
 
 
 def graficar():
@@ -265,7 +330,7 @@ def graficar():
     ventana.mainloop()
 
 
-def graph():
+def graph(parent=None):
     file_path = filedialog.askopenfilename()
     if not file_path:
         return
@@ -275,7 +340,7 @@ def graph():
     params = resultados["parametros"]
     resultados.pop("parametros")
 
-    app = GraphApp(resultados, params)
+    app = GraphApp(resultados, params, parent=parent)
     app.mainloop()
 
 

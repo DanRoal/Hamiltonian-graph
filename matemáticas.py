@@ -21,6 +21,7 @@ def master(HAMILTONIANO='Dicke', inicial = "+j", **config):
     global oper
     oper = generar_operadores(config["N_CAV"], config["N_ATOMOS"], config["inicial"])
 
+
     global valores
     valores = {
         "epsilon_val": np.linspace(config["EPSILON_IN"], config["EPSILON_OUT"], config["DIVISIONES_EPSILON"]),
@@ -37,15 +38,15 @@ def master(HAMILTONIANO='Dicke', inicial = "+j", **config):
         "values": [
             oper["a"].dag()*oper["a"],
             oper["J_z"],
-            (1/2)*(oper["a"].dag()*oper["a"] + oper["J_z"]),
+            oper["a"].dag()*oper["a"] + oper["J_z"],
             (oper["a"].dag()*oper["a"])**2,
             oper["J_x"],
             oper["J_x"] * oper["J_x"],
         ],
         "names": [
             "⟨n⟩ (Número de fotones)",
-            "⟨Jz⟩ (Inversión atómica)",
-            "pob excitada",
+            "⟨J_z⟩ (Inversión atómica)",
+            "M = ⟨a^\\dagger a + J_z⟩",
             "⟨n^2⟩",
             "⟨J_x⟩",
             "⟨(J_x)^2⟩",
@@ -69,6 +70,7 @@ def generar_operadores(N_CAV, N_ATOMOS, inicial):
     J_m = tensor(qeye(N_CAV), jmat(j, "-"))
     J_x = tensor(qeye(N_CAV), jmat(j, "x"))
     res.update({"J_z":J_z, "J_m":J_m, "J_p":J_p, "J_x":J_x})
+    
 
     ## Generamos estado inicial ##
     match inicial:
@@ -92,14 +94,26 @@ def generar_operadores(N_CAV, N_ATOMOS, inicial):
             vec[-1]   = 1/np.sqrt(2)   # m = -j
             estado_inicial_atomico = Qobj(vec)
             estado_inicial_atomico.dims = [[dim], [1]]
+            estado_inicial_cavidad = basis(N_CAV, 0)
             res["estado inicial"] = tensor(estado_inicial_cavidad, estado_inicial_atomico)
         case "coherente superpuesto":
             alpha = 1
             beta = 1j
-            estado_inicial_cavidad = coherent(N_CAV, alpha) + coherent(N_CAV, beta)
+
+            # Reconstruir explícitamente como Qobj con dims correctas
+            cav_array = (coherent(N_CAV, alpha).full() + coherent(N_CAV, beta).full())
+            estado_inicial_cavidad = Qobj(cav_array)
+            estado_inicial_cavidad.dims = [[N_CAV], [1]]
             estado_inicial_cavidad = estado_inicial_cavidad.unit()
-            estado_inicial_atomico = basis(int(2*j +1), int(2*j))
-            res["estado inicial"] = tensor(estado_inicial_cavidad, estado_inicial_atomico)
+
+            estado_inicial_atomico = basis(int(2*j + 1), int(2*j))
+
+            estado_total = tensor(estado_inicial_cavidad, estado_inicial_atomico)
+            estado_total.dims = [[N_CAV, int(2*j + 1)], [1, 1]] 
+
+            res["estado inicial"] = estado_total
+    
+
     return res
 
 def compute_single_tavis(params):
@@ -189,8 +203,3 @@ def calculos(config):
         pickle.dump(resultados, f)
 
     print(f"Resultados guardados en '{nombre_archivo}'")
-
-
-
-    
-
