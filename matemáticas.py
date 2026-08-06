@@ -98,7 +98,7 @@ def generar_operadores(N_CAV, N_ATOMOS, inicial):
             res["estado inicial"] = tensor(estado_inicial_cavidad, estado_inicial_atomico)
         case "coherente superpuesto":
             alpha = 1
-            beta = 1j
+            beta = -1j
 
             # Reconstruir explícitamente como Qobj con dims correctas
             cav_array = (coherent(N_CAV, alpha).full() + coherent(N_CAV, beta).full())

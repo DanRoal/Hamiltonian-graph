@@ -6,7 +6,12 @@ TIEMPO_INICIO = 0
 TIEMPO_FINAL = 50
 PASOS = 500
 try:
-    TRABAJADORES = int(os.process_cpu_count()/2)
+    processes = os.process_cpu_count()
+    if processes:
+        TRABAJADORES = processes//2
+    else:
+        raise ValueError
+    
 except:
     TRABAJADORES = 2
 

@@ -29,7 +29,6 @@ class App(ctk.CTk):
         self.estados_iniciales = {"|ψ_0⟩ = |0⟩⊗|j,+j⟩": "+j",
                                 "|ψ_0⟩ = |\\alpha⟩⊗|j,-j⟩": "alpha",
                                 "|ψ_0⟩ = |up⟩⊗|j,-j⟩":"-j",
-                                "|ψ_0⟩ = |up⟩⊗|j,-j⟩":"-j",
                                 "|ψ_0⟩=|0⟩⊗(1/2^(1/2))(|j,j⟩+|j,j-1⟩)": "superpuesto",
                                 "alph + beta": "coherente superpuesto"}
         self.estados_iniciales_frame = OpcionesPredeterminadasFrame(self, title="Estado inicial", values= self.estados_iniciales)
@@ -43,7 +42,9 @@ class App(ctk.CTk):
         self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
     def do_math(self):
-        matemáticas.master(HAMILTONIANO=self.hamiltonianos_frame.radio_var.get(), inicial=self.estados_iniciales_frame.radio_var.get(), **self.parametros_frame.get())
+        matemáticas.master(HAMILTONIANO=self.hamiltonianos_frame.radio_var.get(), 
+                           inicial=self.estados_iniciales_frame.radio_var.get(), 
+                           **self.parametros_frame.get())
 
     def render_graph_from_file(self):
         graficador.graph(parent=self)
@@ -67,7 +68,9 @@ class ParametrosFrame(ctk.CTkFrame):
             label = ctk.CTkLabel(self, text=etiqueta)
             label.grid(row=i, column= 0,padx=10, pady=(5,5),sticky="w")
 
-            entrada = ctk.CTkEntry(self, placeholder_text=f"{self.valores_default[parametro]}", fg_color= '#010101',justify= tk.CENTER)
+            entrada = ctk.CTkEntry(self, placeholder_text=f"{self.valores_default[parametro]}", 
+                                   fg_color= '#010101',
+                                   justify= tk.CENTER)
             entrada.grid(row=i, column = 1, padx=10, pady=(5,5),sticky="ew")
 
             self.entradas[parametro] = entrada
@@ -94,10 +97,7 @@ class OpcionesPredeterminadasFrame(ctk.CTkFrame):
         self.title.grid(row=0, column=0, padx=10, pady=(5,5), sticky="ew")
 
         for i, key in enumerate(values):
-            option = ctk.CTkRadioButton(self, text=f"{key}", command=self.radiobutton_event, variable= self.radio_var, value=values[key])
+            option = ctk.CTkRadioButton(self, text=f"{key}", variable= self.radio_var, value=values[key])
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="wn")
-
-    def radiobutton_event(self):
-        print("radiobutton toggled, current value:", self.radio_var.get())
 
 

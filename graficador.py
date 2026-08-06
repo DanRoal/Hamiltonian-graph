@@ -91,7 +91,14 @@ class PlotsPanel(ctk.CTkFrame):
             self.axes[op_idx] = ax
 
             data = self.resultados[self.closest_init]
-            line, = ax.plot(self.times, data['expect_values'][op_idx], color=colors[op_idx % len(colors)], linewidth=2.5, antialiased=True)
+            y_data = data['expect_values'][op_idx]
+            
+            # Limitar compresión a máximo de 10 en visualización
+            is_compresion = 'compresión' in name.lower()
+            if is_compresion:
+                y_data = np.clip(y_data, None, 10)
+            
+            line, = ax.plot(self.times, y_data, color=colors[op_idx % len(colors)], linewidth=2.5, antialiased=True)
             self.lines[op_idx] = line
 
             ax.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
@@ -179,6 +186,12 @@ class PlotsPanel(ctk.CTkFrame):
             if op_values:
                 min_val = min(op_values)
                 max_val = max(op_values)
+                
+                # Limitar compresión a máximo de 10 en visualización
+                is_compresion = 'compresión' in self.operator_names[op_idx].lower()
+                if is_compresion:
+                    max_val = min(max_val, 10)
+                
                 margen = 0.1 * (max_val - min_val) if (max_val - min_val) != 0 else 0.5
                 operator_ranges[op_idx] = (min_val - margen, max_val + margen)
             else:
@@ -188,7 +201,6 @@ class PlotsPanel(ctk.CTkFrame):
 
     def _setup_hover_cursor(self, fig, ax, line):
         xdata = self.times
-        ydata = line.get_ydata()
         annotation = ax.annotate(
             "",
             xy=(0, 0),
@@ -214,6 +226,7 @@ class PlotsPanel(ctk.CTkFrame):
             if x is None:
                 return
 
+            ydata = line.get_ydata()
             idx = np.abs(xdata - x).argmin()
             x_val = xdata[idx]
             y_val = ydata[idx]
@@ -233,7 +246,14 @@ class PlotsPanel(ctk.CTkFrame):
     def update_plots(self, closest_key):
         data = self.resultados[closest_key]
         for op_idx in range(len(self.operator_names)):
-            self.lines[op_idx].set_ydata(data['expect_values'][op_idx])
+            y_data = data['expect_values'][op_idx]
+            
+            # Limitar compresión a máximo de 10 en visualización
+            is_compresion = 'compresión' in self.operator_names[op_idx].lower()
+            if is_compresion:
+                y_data = np.clip(y_data, None, 10)
+            
+            self.lines[op_idx].set_ydata(y_data)
             self.axes[op_idx].set_title(f"{self.operator_names[op_idx]} | ε={closest_key[0]:.3f}, g={closest_key[1]:.3f}")
             self.canvases[op_idx].draw_idle()
 
@@ -290,6 +310,7 @@ class GraphApp:
         self._own_root = parent is None
         self.window = ctk.CTk() if parent is None else ctk.CTkToplevel(parent)
         self._prepare_data()
+        self.window.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
 
     def _prepare_data(self):
@@ -319,6 +340,12 @@ class GraphApp:
 
     def _on_change(self, closest_key):
         self.plots.update_plots(closest_key)
+
+    def _on_close(self):
+        try:
+            self.window.destroy()
+        except Exception:
+            pass
 
     def mainloop(self):
         if self._own_root:
