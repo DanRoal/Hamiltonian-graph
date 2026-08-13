@@ -96,9 +96,6 @@ class GraficadorFrame(ctk.CTkFrame):
         self.button.grid(row = 0, column = 0, padx =10, pady = 10)
 
 
-
-
-
 class ValoresFrame(ctk.CTkScrollableFrame):
     def __init__(self, master:"App"):
         super().__init__(master)
@@ -126,18 +123,40 @@ class ValoresFrame(ctk.CTkScrollableFrame):
         self.estados_iniciales_frame = OpcionesPredeterminadasFrame(self, title="Estado inicial", values= self.estados_iniciales)
         self.estados_iniciales_frame.grid(row=1, column=1, pady=(0,2), sticky="news", columnspan=1)
 
+        esperados={
+            "names": [
+                "⟨n⟩ (Número de fotones)",
+                "⟨J_z⟩ (Inversión atómica)",
+                "M = ⟨a^\\dagger a + J_z⟩",
+                "⟨n^2⟩",
+                "⟨J_x⟩",
+                "⟨(J_x)^2⟩",
+                "⟨q⟩",
+                "⟨q^2⟩",
+                "⟨p⟩",
+                "⟨p^2⟩",
+            ],
+        }
+
+        damping = [
+            "a",
+            "a\\dagger",
+            "J-",
+            "J+",
+        ]
+
+        self.expected_operators = OperadoresFrame(self, title="Operadores esperados", values=esperados["names"])
+        self.expected_operators.grid(row=2, column = 0, pady=2, sticky ="news")
+
+        self.damping_operators = OperadoresFrame(self, title="Damping operators", values= damping)
+        self.damping_operators.grid(row = 2, column = 1, pady=2, sticky = "news")
 
         ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
         self.boton_quitip = ctk.CTkButton(self, text="Calcular", command= lambda ham = self.hamiltonianos_frame.radio_var.get(), inicial = self.estados_iniciales_frame.radio_var.get(), parametros = self.parametros_frame.get() : master.do_math(ham, inicial, parametros) )
-        self.boton_quitip.grid(row=2,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
+        self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
         self.button_select = ctk.CTkButton(self, text="Selecionar archivo",command=master.graph)
-        self.button_select.grid(row=3, column = 0, padx=10, pady=(5,5), sticky="ew", columnspan = 2)
-
-
-        
-        
-
+        self.button_select.grid(row=4, column = 0, padx=10, pady=(5,5), sticky="ew", columnspan = 2)
 
 
 class ParametrosFrame(ctk.CTkFrame):
@@ -189,6 +208,31 @@ class OpcionesPredeterminadasFrame(ctk.CTkFrame):
         for i, key in enumerate(values):
             option = ctk.CTkRadioButton(self, text=f"{key}", variable= self.radio_var, value=values[key])
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="wn")
+
+class OperadoresFrame(ctk.CTkFrame):
+    def __init__(self, master, title:str, values:list):
+        super().__init__(master)
+
+        self.checkboxes = []
+        self.columnconfigure(0, weight=1)
+
+        self.title = ctk.CTkLabel(self, text=title, fg_color="gray30", corner_radius=6)
+        self.title.grid(row=0, column=0, padx=10, pady=(5,5), sticky="ew")
+
+        for i, key in enumerate(values):
+            option = ctk.CTkCheckBox(self, text=key)
+            option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="w")
+            if title == "Operadores esperados":
+                option.select()
+            self.checkboxes.append(option)
+
+    def get(self):
+        checked_checkboxes = []
+        for checkbox in self.checkboxes:
+            if checkbox.get() == 1:
+                checked_checkboxes.append(checkbox.cget("text"))
+        return checked_checkboxes
+
 
 if __name__ == "__main__":
     root = App()

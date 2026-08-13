@@ -18,7 +18,7 @@ def calcular_mandel(resultado: dict):
         resultado[pareja]["expect_values"] = np.vstack([resultado[pareja]["expect_values"], param_mandel])
 
 
-def calcular_compresion(resultado: dict, j: float):
+def calcular_compresion_spin(resultado: dict, j: float):
     for pareja in resultado:
         Jx = resultado[pareja]["expect_values"][4]
         Jx2 = resultado[pareja]["expect_values"][5]
@@ -322,7 +322,7 @@ class GraphApp(ctk.CTkScrollableFrame):
             if isinstance(self.resultados[k]["expect_values"], list):
                 self.resultados[k]["expect_values"] = np.array(self.resultados[k]["expect_values"])
         calcular_mandel(self.resultados)
-        calcular_compresion(self.resultados, self.params["N_ATOMOS"] / 2)
+        calcular_compresion_spin(self.resultados, self.params["N_ATOMOS"] / 2)
 
         sample = self.resultados[list(self.resultados.keys())[0]]
         self.n_operators = len(sample["expect_values"])

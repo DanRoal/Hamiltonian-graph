@@ -32,24 +32,16 @@ def master(nombre_archivo_dado, HAMILTONIANO='Dicke', inicial = "+j",**config):
     
     global expected
     expected = {
-        "values": [
-            oper["a"].dag()*oper["a"],
-            oper["J_z"],
-            oper["a"].dag()*oper["a"] + oper["J_z"],
-            (oper["a"].dag()*oper["a"])**2,
-            oper["J_x"],
-            oper["J_x"] * oper["J_x"],
-        ],
-        "names": [
-            "⟨n⟩ (Número de fotones)",
-            "⟨J_z⟩ (Inversión atómica)",
-            "M = ⟨a^\\dagger a + J_z⟩",
-            "⟨n^2⟩",
-            "⟨J_x⟩",
-            "⟨(J_x)^2⟩",
-            "Parámetro Mandel",
-            "Parámetro Compresión",
-        ],
+        "⟨n⟩ (Número de fotones)": oper["a"].dag() * oper["a"],
+        "⟨J_z⟩ (Inversión atómica)": oper["J_z"],
+        "M = ⟨a^\\dagger a + J_z⟩": oper["a"].dag() * oper["a"] + oper["J_z"],
+        "⟨n^2⟩": (oper["a"].dag() * oper["a"]) ** 2,
+        "⟨J_x⟩": oper["J_x"],
+        "⟨(J_x)^2⟩": oper["J_x"] * oper["J_x"],
+        "⟨q⟩": (oper["a"] + oper["a"].dag()) * (1 / np.sqrt(2)),
+        "⟨q^2⟩": ((oper["a"] + oper["a"].dag()) * (1 / np.sqrt(2))) ** 2,
+        "⟨p⟩": (oper["a"] - oper["a"].dag()) * (1 / (1j * np.sqrt(2))),
+        "⟨p^2⟩": ((oper["a"] - oper["a"].dag()) * (1 / (1j * np.sqrt(2)))) ** 2,
     }
     calculos(config)
 
@@ -120,7 +112,7 @@ def compute_single_tavis(params):
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] * oper["J_p"] + oper["a"].dag() * oper["J_m"])
     
     opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected["values"], options=opts)
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=list(expected.values()), options=opts)
     
     return (epsilon, g, result)
 
@@ -131,7 +123,7 @@ def compute_single_dicke(params):
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     
     opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=expected["values"], options=opts)
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=list(expected.values()), options=opts)
     
     return (epsilon, g, result)
 
@@ -166,7 +158,7 @@ def calculos(config):
         "DIVISIONES_LAMDA": len(valores["lamda_val"]),
         "HAMILTONIANO": config["HAMILTONIANO"],
         "DAMPING_OPERATORS": [str(op) for op in damping] if damping else ["Ninguno"],
-        "EXPECTED_NAMES": expected["names"],
+        "EXPECTED_NAMES": list(expected.keys()),
         "INITIAL": config["inicial"]
         }
     inicio = time.time()
