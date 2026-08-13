@@ -1,16 +1,108 @@
 import customtkinter as ctk
 import tkinter as tk
+from tkinter import filedialog
 import parametros_default
 import matemáticas
-import graficador
+from graficador import GraphApp
+import pickle
+
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
     
         self.title("HamGraph")
-        self.geometry('480x800')
-        self.minsize(400,700)
+        self.minsize(800,700)
+        self.columnconfigure((0,1,2), weight=1)
+        self.after(100, lambda: self.state("zoomed"))
+        self.rowconfigure(0, weight=1)
+
+        self.parametros = {}
+        self.resultados = {}
+
+
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.grid(row=0, column=1, sticky="nsew", columnspan = 2)
+        self.container.grid_columnconfigure(0, weight=1)
+        self.container.grid_rowconfigure(0, weight=1)
+
+        self.frames = {}
+        self.frames["GraficadorFrame"] = GraficadorFrame(master=self.container, controller=self)
+        self.frames["GraphApp"] = None
+        self._managed_frames = {}
+
+        self.show_screen("GraficadorFrame")
+
+        self.valores = ValoresFrame(master=self)
+        self.valores.grid(row=0, column = 0, padx = 5, pady=0, sticky = "nsew")
+
+        
+
+    def graph(self, path= None):
+        file_path = path
+        if not path:
+            file_path = filedialog.askopenfilename()
+        if not file_path:
+            return
+        with open(file_path, 'rb') as f:
+            datos = pickle.load(f)
+
+        self.parametros = datos["parametros"]
+        self.resultados = datos
+        self.resultados.pop("parametros", None)
+
+        self.show_screen("GraphApp")
+
+
+    def do_math(self, ham, iniciales, parametros):
+
+        nombre_archivo = filedialog.asksaveasfilename()
+        if nombre_archivo == "":
+            print("Nombre de archivo no válido")
+            return
+        matemáticas.master(nombre_archivo, HAMILTONIANO= ham, 
+                           inicial=iniciales, 
+                           **parametros)
+        nombre_archivo += ".pkl"
+        self.graph(nombre_archivo)
+
+
+
+    def show_screen(self, name) -> None:
+        if isinstance(name, type):
+            name = name.__name__
+
+        if name == "GraphApp" and self.frames["GraphApp"] is None:
+            self.frames["GraphApp"] = GraphApp(master=self.container, controller=self)
+
+        frame = self.frames[name]
+        if not self._managed_frames.get(name, False):
+            frame.grid(row=0, column=0, sticky="nsew")
+            self._managed_frames[name] = True
+
+        frame.tkraise()
+
+        
+class GraficadorFrame(ctk.CTkFrame):
+    def __init__(self, master, controller: "App"):
+        super().__init__(master)
+
+        self.controller = controller
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0,weight=1)
+
+        self.button = ctk.CTkButton(self, text="Seleccionar archivo", command=controller.graph)
+        self.button.grid(row = 0, column = 0, padx =10, pady = 10)
+
+
+
+
+
+class ValoresFrame(ctk.CTkScrollableFrame):
+    def __init__(self, master:"App"):
+        super().__init__(master)
+
         self.columnconfigure((0,1), weight=1)
         self.rowconfigure((0,1), weight=1)
 
@@ -32,22 +124,20 @@ class App(ctk.CTk):
                                 "|ψ_0⟩=|0⟩⊗(1/2^(1/2))(|j,j⟩+|j,j-1⟩)": "superpuesto",
                                 "alph + beta": "coherente superpuesto"}
         self.estados_iniciales_frame = OpcionesPredeterminadasFrame(self, title="Estado inicial", values= self.estados_iniciales)
-        self.estados_iniciales_frame.grid(row=1, column=1,pady=(0,2), sticky="news", columnspan=1)
+        self.estados_iniciales_frame.grid(row=1, column=1, pady=(0,2), sticky="news", columnspan=1)
 
 
         ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
-        self.boton_quitip = ctk.CTkButton(self,text="Calcular", command=self.do_math)
+        self.boton_quitip = ctk.CTkButton(self, text="Calcular", command= lambda ham = self.hamiltonianos_frame.radio_var.get(), inicial = self.estados_iniciales_frame.radio_var.get(), parametros = self.parametros_frame.get() : master.do_math(ham, inicial, parametros) )
         self.boton_quitip.grid(row=2,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
-        self.boton_quitip = ctk.CTkButton(self,text="Graficar desde archivo", command=self.render_graph_from_file)
-        self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
-    def do_math(self):
-        matemáticas.master(HAMILTONIANO=self.hamiltonianos_frame.radio_var.get(), 
-                           inicial=self.estados_iniciales_frame.radio_var.get(), 
-                           **self.parametros_frame.get())
+        self.button_select = ctk.CTkButton(self, text="Selecionar archivo",command=master.graph)
+        self.button_select.grid(row=3, column = 0, padx=10, pady=(5,5), sticky="ew", columnspan = 2)
 
-    def render_graph_from_file(self):
-        graficador.graph(parent=self)
+
+        
+        
+
 
 
 class ParametrosFrame(ctk.CTkFrame):
@@ -100,4 +190,6 @@ class OpcionesPredeterminadasFrame(ctk.CTkFrame):
             option = ctk.CTkRadioButton(self, text=f"{key}", variable= self.radio_var, value=values[key])
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="wn")
 
-
+if __name__ == "__main__":
+    root = App()
+    root.mainloop()

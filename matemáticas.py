@@ -1,22 +1,19 @@
-from qutip import *
+from qutip import tensor, qeye, destroy, jmat, basis, coherent, Qobj, mesolve
 import numpy as np
 import time
 import concurrent.futures as concurr
 import pickle
-from tkinter import filedialog
 import parametros_default
 
-def master(HAMILTONIANO='Dicke', inicial = "+j", **config):
+def master(nombre_archivo_dado, HAMILTONIANO='Dicke', inicial = "+j",**config):
     config_defaults = {key: getattr(parametros_default, key) for key in getattr(parametros_default, "nombres", {})}
     config = {**config_defaults, **config}
     config["HAMILTONIANO"] = HAMILTONIANO
     config["inicial"] = inicial
 
     global nombre_archivo
-    nombre_archivo = filedialog.asksaveasfilename()
-    if nombre_archivo == "":
-        print("Nombre de archivo no válido")
-        return
+    nombre_archivo = nombre_archivo_dado
+
 
     global oper
     oper = generar_operadores(config["N_CAV"], config["N_ATOMOS"], config["inicial"])
@@ -144,6 +141,7 @@ def init_trabajador(oper_data, valores_data, expected_data, damping_data):
     valores = valores_data
     expected = expected_data
     damping = damping_data
+    #queue = queue_data
 
 
 def calculos(config):
@@ -173,27 +171,16 @@ def calculos(config):
         }
     inicio = time.time()
     
+    compute_fn = compute_single_tavis if config["HAMILTONIANO"] == "Tavis-Cummings" else compute_single_dicke
 
-    if config["HAMILTONIANO"] == "Tavis-Cummings":
-        with concurr.ProcessPoolExecutor(max_workers=config["TRABAJADORES"], 
-                                         initializer=init_trabajador,
-                                         initargs= (oper, valores, expected, damping)) as executor:
+    with concurr.ProcessPoolExecutor(max_workers=config["TRABAJADORES"], 
+                                     initializer=init_trabajador,
+                                     initargs= (oper, valores, expected, damping)) as executor:
+        for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_fn, param_combinations)):
+            resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
+            if (i+1) % 10  == 0:
+                print(f"Completados: {i + 1}/{len(param_combinations)}")
 
-            for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_tavis, param_combinations)):
-                resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
-
-                if (i+1) % 10  == 0:
-                    print(f"Completados: {i + 1}/{len(param_combinations)}")
-    elif config["HAMILTONIANO"] == "Dicke":
-        with concurr.ProcessPoolExecutor(max_workers=config["TRABAJADORES"], 
-                                         initializer=init_trabajador,
-                                         initargs= (oper, valores, expected, damping)) as executor:
-
-            for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_single_dicke, param_combinations)):
-                resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
-
-                if (i+1) % 10  == 0:
-                    print(f"Completados: {i + 1}/{len(param_combinations)}")
 
     fin = time.time()
     print(f"Tardó {fin - inicio:.3f} segundos")

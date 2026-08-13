@@ -1,10 +1,12 @@
-import pickle
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
-from tkinter import filedialog
 import customtkinter as ctk
-from interface_graficador import VentanaPrincipal
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from interface import App
 
 
 def calcular_mandel(resultado: dict):
@@ -303,14 +305,16 @@ class SlidersPanel(ctk.CTkFrame):
         self.on_change(closest)
 
 
-class GraphApp:
-    def __init__(self, resultados: dict, params: dict, parent=None):
-        self.resultados = resultados
-        self.params = params
-        self._own_root = parent is None
-        self.window = ctk.CTk() if parent is None else ctk.CTkToplevel(parent)
+class GraphApp(ctk.CTkScrollableFrame):
+    def __init__(self, master, controller: "App"):
+        super().__init__(master)
+        self.resultados = getattr(controller, "resultados", {})
+        self.params = getattr(controller, "parametros", {})
+
+        if not self.resultados:
+            return
+        
         self._prepare_data()
-        self.window.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
 
     def _prepare_data(self):
@@ -326,50 +330,23 @@ class GraphApp:
         self.times = np.linspace(self.params["TIEMPO_INICIO"], self.params["TIEMPO_FINAL"], self.params["PASOS"])
 
     def _build_ui(self):
-        self.window.title("Visualizador de Resultados QuTiP")
-        self.window.geometry("1400x900")
-        self.window.minsize(1000, 700)
-        self.window.columnconfigure(0, weight=1)
-        self.window.rowconfigure(0, weight=0)
-        self.window.rowconfigure(1, weight=1)
-        self.window.rowconfigure(2, weight=0)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=0)
+        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=0)
 
-        self.info = InfoPanel(self.window, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
-        self.plots = PlotsPanel(self.window, self.resultados, self.operator_names, self.times, row=1, column=0, padx=15, pady=(10, 15), sticky="nsew")
-        self.sliders = SlidersPanel(self.window, self.resultados, on_change=self._on_change, closest_init=self.plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
+        self.info = InfoPanel(self, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
+        self.plots = PlotsPanel(self, self.resultados, self.operator_names, self.times, row=1, column=0, padx=15, pady=(10, 15), sticky="nsew")
+        self.sliders = SlidersPanel(self, self.resultados, on_change=self._on_change, closest_init=self.plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
 
     def _on_change(self, closest_key):
         self.plots.update_plots(closest_key)
 
-    def _on_close(self):
-        try:
-            self.window.destroy()
-        except Exception:
-            pass
-
-    def mainloop(self):
-        if self._own_root:
-            self.window.mainloop()
 
 
-def graficar():
-    ventana = VentanaPrincipal()
-    ventana.mainloop()
 
 
-def graph(parent=None):
-    file_path = filedialog.askopenfilename()
-    if not file_path:
-        return
-    with open(file_path, 'rb') as f:
-        resultados = pickle.load(f)
-
-    params = resultados["parametros"]
-    resultados.pop("parametros")
-
-    app = GraphApp(resultados, params, parent=parent)
-    app.mainloop()
 
 
 if __name__ == "__main__":
-    graph()
+    pass
