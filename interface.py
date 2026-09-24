@@ -51,6 +51,11 @@ class App(ctk.CTk):
         self.resultados = datos
         self.resultados.pop("parametros", None)
 
+        if self.frames["GraphApp"] is not None:
+            self.frames["GraphApp"].destroy()
+            self.frames["GraphApp"] = None
+            self._managed_frames["GraphApp"] = False
+        
         self.show_screen("GraphApp")
 
 
@@ -152,7 +157,15 @@ class ValoresFrame(ctk.CTkScrollableFrame):
         self.damping_operators.grid(row = 2, column = 1, pady=2, sticky = "news")
 
         ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
-        self.boton_quitip = ctk.CTkButton(self, text="Calcular", command= lambda ham = self.hamiltonianos_frame.radio_var.get(), inicial = self.estados_iniciales_frame.radio_var.get(), parametros = self.parametros_frame.get() : master.do_math(ham, inicial, parametros) )
+        self.boton_quitip = ctk.CTkButton(
+            self,
+            text="Calcular",
+            command=lambda: master.do_math(
+                self.hamiltonianos_frame.radio_var.get(),
+                self.estados_iniciales_frame.radio_var.get(),
+                self.parametros_frame.get()
+            )
+        )
         self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
         self.button_select = ctk.CTkButton(self, text="Selecionar archivo",command=master.graph)

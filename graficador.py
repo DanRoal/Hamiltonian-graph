@@ -9,16 +9,20 @@ if TYPE_CHECKING:
     from interface import App
 
 
-def calcular_mandel(resultado: dict):
+def calcular_mandel(resultado: dict, operator_names: list | None = None):
     for pareja in resultado:
         n = resultado[pareja]["expect_values"][0]
         n2 = resultado[pareja]["expect_values"][3]
-        param_mandel = (n2 - n**2 - n) / n
-        param_mandel = np.nan_to_num(param_mandel, nan=0.0)
+        param_mandel = np.divide(
+            n2 - n**2 - n,
+            n,
+            out=np.zeros_like(n, dtype=float),
+            where=n != 0,
+        )
         resultado[pareja]["expect_values"] = np.vstack([resultado[pareja]["expect_values"], param_mandel])
 
 
-def calcular_compresion_spin(resultado: dict, j: float):
+def calcular_compresion_spin(resultado: dict, j: float, operator_names: list | None = None):
     for pareja in resultado:
         Jx = resultado[pareja]["expect_values"][4]
         Jx2 = resultado[pareja]["expect_values"][5]
@@ -33,6 +37,67 @@ def calcular_compresion_spin(resultado: dict, j: float):
 
         param_compresion = np.sqrt(2 * j) * delta_jx / jz_abs
         resultado[pareja]["expect_values"] = np.vstack([resultado[pareja]["expect_values"], param_compresion])
+
+
+def calcular_fluctuacion_cuadraturas(resultado: dict):
+    for pareja in resultado:
+        q = resultado[pareja]["expect_values"][6]
+        q2 = resultado[pareja]["expect_values"][7]
+        p = resultado[pareja]["expect_values"][8]
+        p2 = resultado[pareja]["expect_values"][9]
+
+        var_q = q2 - q**2
+        var_p = p2 - p**2
+
+        fluctuacion_q = np.sqrt(np.maximum(var_q, 0.0))
+        fluctuacion_p = np.sqrt(np.maximum(var_p, 0.0))
+
+        resultado[pareja]["expect_values"] = np.vstack([
+            resultado[pareja]["expect_values"],
+            fluctuacion_q,
+            fluctuacion_p,
+        ])
+
+def calcular_compresion_cuadraturas(resultado: dict):
+    for pareja in resultado:
+        q = resultado[pareja]["expect_values"][6]
+        q2 = resultado[pareja]["expect_values"][7]
+        p = resultado[pareja]["expect_values"][8]
+        p2 = resultado[pareja]["expect_values"][9]
+
+        var_q = q2 - q**2
+        var_p = p2 - p**2
+        xi2_q = 2 * np.maximum(var_q, 0.0)
+        xi2_p = 2 * np.maximum(var_p, 0.0)
+
+        resultado[pareja]["expect_values"] = np.vstack([
+            resultado[pareja]["expect_values"],
+            xi2_q,
+            xi2_p,
+        ])
+
+
+def _ampliar_nombres_operadores(operator_names: list, n_series: int) -> list:
+    nombres = list(operator_names)
+    metricas = [
+        "Parámetro Mandel",
+        "Parámetro Compresión Spin",
+        "Δq",
+        "Δp",
+        "ξ²_q",
+        "ξ²_p",
+    ]
+
+    for nombre in metricas:
+        if len(nombres) >= n_series:
+            break
+        if nombre not in nombres:
+            nombres.append(nombre)
+
+    while len(nombres) < n_series:
+        nombres.append(f"Operador {len(nombres) + 1}")
+
+    return nombres[:n_series]
 
 
 class InfoPanel(ctk.CTkFrame):
@@ -125,58 +190,6 @@ class PlotsPanel(ctk.CTkFrame):
             fig.tight_layout()
             canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
 
-        # comparative tab: only add if both indices found
-        fotones_idx = next((i for i, n in enumerate(self.operator_names) if 'fotones' in n.lower()), None)
-        inv_idx = next((i for i, n in enumerate(self.operator_names) if 'inversión' in n.lower() or 'inversion' in n.lower()), None)
-        # store indices for later safe updates
-        self.fotones_idx = fotones_idx
-        self.inv_idx = inv_idx
-        if fotones_idx is not None and inv_idx is not None:
-            tab_comp = self.tabview.add("Comparativa")
-            # ensure the tab expands to fill available space
-            tab_comp.columnconfigure(0, weight=1)
-            tab_comp.rowconfigure(0, weight=1)
-            fig_c, ax1 = plt.subplots(figsize=(12, 6), facecolor='white')
-            ax1.set_facecolor('white')
-            data_c = self.resultados[self.closest_init]
-            line_f, = ax1.plot(self.times, data_c['expect_values'][fotones_idx], color='#1f77b4', linewidth=2.5, antialiased=True, label='Fotones')
-            ax1.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
-            ax1.set_ylabel("⟨n⟩ (Número de fotones)", fontsize=15, color='#1f77b4', fontweight='bold')
-            ax1.tick_params(axis='y', labelcolor='#1f77b4', labelsize=12)
-            ax1.ticklabel_format(style='plain', useOffset=False)
-            ax1.yaxis.offsetText.set_visible(False)
-
-            self._setup_hover_cursor(fig_c, ax1, line_f)
-
-            ax2 = ax1.twinx()
-            line_i, = ax2.plot(self.times, data_c['expect_values'][inv_idx], color='#d62728', linewidth=2.5, antialiased=True, linestyle='--', label='Inversión')
-            ax2.set_ylabel("⟨J_z⟩ (Inversión atómica)", fontsize=15, color='#d62728', fontweight='bold')
-            ax2.tick_params(axis='y', labelcolor='#d62728', labelsize=12)
-            ax2.ticklabel_format(style='plain', useOffset=False)
-            ax2.yaxis.offsetText.set_visible(False)
-            self._setup_hover_cursor(fig_c, ax2, line_i)
-
-            ax1.set_title(f"Intercambio de energía | ε={self.closest_init[0]:.3f}, g={self.closest_init[1]:.3f}", color='black', fontsize=15, fontweight='bold', pad=15)
-
-            fotones_values = [d['expect_values'][fotones_idx] for d in self.resultados.values()]
-            inversion_values = [d['expect_values'][inv_idx] for d in self.resultados.values()]
-            fmin, fmax = min(np.min(a) for a in fotones_values), max(np.max(a) for a in fotones_values)
-            imin, imax = min(np.min(a) for a in inversion_values), max(np.max(a) for a in inversion_values)
-            mf = 0.1 * (fmax - fmin) if (fmax - fmin) != 0 else 0.5
-            mi = 0.1 * (imax - imin) if (imax - imin) != 0 else 0.5
-            ax1.set_ylim(fmin - mf, fmax + mf)
-            ax2.set_ylim(imin - mi, imax + mi)
-
-            canvas_c = FigureCanvasTkAgg(fig_c, master=tab_comp)
-            canvas_c.draw()
-            fig_c.tight_layout()
-            canvas_c.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-
-            self.canvases['comparativa'] = canvas_c
-            self.axes['comparativa_1'] = ax1
-            self.axes['comparativa_2'] = ax2
-            self.lines['comparativa_fotones'] = line_f
-            self.lines['comparativa_inversion'] = line_i
 
     def _compute_operator_ranges(self):
         operator_ranges = {}
@@ -259,13 +272,6 @@ class PlotsPanel(ctk.CTkFrame):
             self.axes[op_idx].set_title(f"{self.operator_names[op_idx]} | ε={closest_key[0]:.3f}, g={closest_key[1]:.3f}")
             self.canvases[op_idx].draw_idle()
 
-        # update comparative only if it exists and indices were found at build time
-        if 'comparativa' in self.canvases and getattr(self, 'fotones_idx', None) is not None and getattr(self, 'inv_idx', None) is not None:
-            self.lines['comparativa_fotones'].set_ydata(data['expect_values'][self.fotones_idx])
-            self.lines['comparativa_inversion'].set_ydata(data['expect_values'][self.inv_idx])
-            self.canvases['comparativa'].draw_idle()
-
-
 class SlidersPanel(ctk.CTkFrame):
     def __init__(self, master, resultados: dict, on_change, closest_init, **grid_kwargs):
         super().__init__(master, fg_color="gray25", corner_radius=8)
@@ -321,12 +327,62 @@ class GraphApp(ctk.CTkScrollableFrame):
         for k in list(self.resultados.keys()):
             if isinstance(self.resultados[k]["expect_values"], list):
                 self.resultados[k]["expect_values"] = np.array(self.resultados[k]["expect_values"])
-        calcular_mandel(self.resultados)
-        calcular_compresion_spin(self.resultados, self.params["N_ATOMOS"] / 2)
+
+        operator_names = list(self.params.get("EXPECTED_NAMES") or [])
+        sample = self.resultados[list(self.resultados.keys())[0]]
+        base_values = np.asarray(sample["expect_values"])
+
+        # Aunque el archivo ya exista sin flags, la vista debe añadir las métricas derivadas
+        # para que aparezcan como pestañas en la carga real del resultado.
+        if base_values.ndim == 2 and base_values.shape[0] >= 10:
+            if "Parámetro Mandel" not in operator_names:
+                calcular_mandel(self.resultados)
+                operator_names.append("Parámetro Mandel")
+            if "Parámetro Compresión Spin" not in operator_names:
+                calcular_compresion_spin(self.resultados, self.params["N_ATOMOS"] / 2)
+                operator_names.append("Parámetro Compresión Spin")
+            if "Δq" not in operator_names:
+                calcular_fluctuacion_cuadraturas(self.resultados)
+                operator_names.extend(["Δq", "Δp"])
+            if "ξ²_q" not in operator_names:
+                calcular_compresion_cuadraturas(self.resultados)
+                operator_names.extend(["ξ²_q", "ξ²_p"])
+
+        # Añadir entropía y pureza como series graficables
+        metricas_estado = [
+            ("Entropía de Von Neumann", "entropy"),
+            ("Pureza", "purity"),
+        ]
+
+        for nombre, clave in metricas_estado:
+            if (
+                nombre not in operator_names
+                and all(clave in resultado for resultado in self.resultados.values())
+            ):
+                longitudes_validas = all(
+                    len(resultado[clave]) == len(resultado["expect_values"][0])
+                    for resultado in self.resultados.values()
+                )
+                if not longitudes_validas:
+                    continue
+
+                for resultado in self.resultados.values():
+                    valores = np.asarray(resultado[clave], dtype=float)
+                    resultado["expect_values"] = np.vstack([
+                        resultado["expect_values"],
+                        valores,
+                    ])
+
+                operator_names.append(nombre)
 
         sample = self.resultados[list(self.resultados.keys())[0]]
         self.n_operators = len(sample["expect_values"])
-        self.operator_names = self.params.get("EXPECTED_NAMES") or [f"Operador {i+1}" for i in range(self.n_operators)]
+        if not operator_names:
+            operator_names = [f"Operador {i+1}" for i in range(self.n_operators)]
+        elif len(operator_names) < self.n_operators:
+            operator_names = _ampliar_nombres_operadores(operator_names, self.n_operators)
+
+        self.operator_names = operator_names[:self.n_operators]
         self.times = np.linspace(self.params["TIEMPO_INICIO"], self.params["TIEMPO_FINAL"], self.params["PASOS"])
 
     def _build_ui(self):
@@ -341,9 +397,6 @@ class GraphApp(ctk.CTkScrollableFrame):
 
     def _on_change(self, closest_key):
         self.plots.update_plots(closest_key)
-
-
-
 
 
 

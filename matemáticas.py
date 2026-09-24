@@ -1,4 +1,4 @@
-from qutip import tensor, qeye, destroy, jmat, basis, coherent, Qobj, mesolve
+from qutip import tensor, qeye, destroy, jmat, basis, coherent, Qobj, mesolve, entropy_vn, ptrace
 import numpy as np
 import time
 import concurrent.futures as concurr
@@ -42,6 +42,7 @@ def master(nombre_archivo_dado, HAMILTONIANO='Dicke', inicial = "+j",**config):
         "⟨q^2⟩": ((oper["a"] + oper["a"].dag()) * (1 / np.sqrt(2))) ** 2,
         "⟨p⟩": (oper["a"] - oper["a"].dag()) * (1 / (1j * np.sqrt(2))),
         "⟨p^2⟩": ((oper["a"] - oper["a"].dag()) * (1 / (1j * np.sqrt(2)))) ** 2,
+        #"⟨a⟩": oper["a"],
     }
     calculos(config)
 
@@ -105,6 +106,16 @@ def generar_operadores(N_CAV, N_ATOMOS, inicial):
 
     return res
 
+def calcular_entropia_cavidad(t, estado):
+    rho_cav = ptrace(estado, 0)
+    return float(entropy_vn(rho_cav))
+
+
+def calcular_pureza_cavidad(t, estado):
+    rho_cav = ptrace(estado, 0)
+    return float((rho_cav @ rho_cav).tr().real)
+
+
 def compute_single_tavis(params):
     """Función serializable para multiprocessing"""
     epsilon, g = params
@@ -112,9 +123,15 @@ def compute_single_tavis(params):
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] * oper["J_p"] + oper["a"].dag() * oper["J_m"])
     
     opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=list(expected.values()), options=opts)
-    
-    return (epsilon, g, result)
+    e_ops = list(expected.values()) + [calcular_entropia_cavidad, calcular_pureza_cavidad]
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=e_ops, options=opts)
+
+    n_expected = len(expected)
+    return (epsilon, g, {
+        "expect": result.expect[:n_expected],
+        "entropy": result.expect[n_expected],
+        "purity": result.expect[n_expected + 1],
+    })
 
 def compute_single_dicke(params):
     """Función serializable para multiprocessing"""
@@ -123,9 +140,15 @@ def compute_single_dicke(params):
     H = oper["a"].dag() * oper["a"] + (epsilon/2) * oper["J_z"] + (g/2) * (oper["a"] + oper["a"].dag()) * (oper["J_p"] + oper["J_m"])
     
     opts = {"nsteps":500000, "rtol":1e-10, "atol":1e-12,}
-    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=list(expected.values()), options=opts)
-    
-    return (epsilon, g, result)
+    e_ops = list(expected.values()) + [calcular_entropia_cavidad, calcular_pureza_cavidad]
+    result = mesolve(H, oper["estado inicial"], valores["lista_tiempos"], c_ops=damping, e_ops=e_ops, options=opts)
+
+    n_expected = len(expected)
+    return (epsilon, g, {
+        "expect": result.expect[:n_expected],
+        "entropy": result.expect[n_expected],
+        "purity": result.expect[n_expected + 1],
+    })
 
 def init_trabajador(oper_data, valores_data, expected_data, damping_data):
     global oper, valores, expected, damping
@@ -165,12 +188,16 @@ def calculos(config):
     
     compute_fn = compute_single_tavis if config["HAMILTONIANO"] == "Tavis-Cummings" else compute_single_dicke
 
-    with concurr.ProcessPoolExecutor(max_workers=config["TRABAJADORES"], 
+    with concurr.ProcessPoolExecutor(max_workers=config["TRABAJADORES"],
                                      initializer=init_trabajador,
-                                     initargs= (oper, valores, expected, damping)) as executor:
-        for i, (epsilon, g, resultados_q) in enumerate(executor.map(compute_fn, param_combinations)):
-            resultados[(epsilon, g)] = {'expect_values': resultados_q.expect}
-            if (i+1) % 10  == 0:
+                                     initargs=(oper, valores, expected, damping)) as executor:
+        for i, (epsilon, g, datos) in enumerate(executor.map(compute_fn, param_combinations)):
+            resultados[(epsilon, g)] = {
+                'expect_values': datos["expect"],
+                'entropy': datos["entropy"],
+                'purity': datos["purity"],
+            }
+            if (i+1) % 10 == 0:
                 print(f"Completados: {i + 1}/{len(param_combinations)}")
 
 
