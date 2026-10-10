@@ -51,6 +51,20 @@ class App(ctk.CTk):
         self.resultados = datos
         self.resultados.pop("parametros", None)
 
+        if "VISIBLE_EXPECTED" in self.parametros or "VISIBLE_METRICS" in self.parametros:
+            self._updating_visibility_controls = True
+            try:
+                self.valores.expected_operators.set_selected(
+                    self.parametros.get("VISIBLE_EXPECTED", [])
+                )
+                self.valores.metricas_extra.set_selected(
+                    self.parametros.get("VISIBLE_METRICS", [])
+                )
+            finally:
+                self._updating_visibility_controls = False
+        else:
+            self._update_graph_visibility()
+
         if self.frames["GraphApp"] is not None:
             self.frames["GraphApp"].destroy()
             self.frames["GraphApp"] = None
@@ -58,13 +72,37 @@ class App(ctk.CTk):
         
         self.show_screen("GraphApp")
 
+    def _update_graph_visibility(self):
+        if getattr(self, "_updating_visibility_controls", False):
+            return
 
-    def do_math(self, ham, iniciales, parametros):
+        visible_expected = self.valores.expected_operators.get()
+        visible_metrics = self.valores.metricas_extra.get()
+        self.parametros["VISIBLE_EXPECTED"] = visible_expected
+        self.parametros["VISIBLE_METRICS"] = visible_metrics
+
+        graph_app = self.frames.get("GraphApp")
+        if graph_app is not None:
+            graph_app.update_visibility(visible_expected, visible_metrics)
+
+
+    def do_math(self, ham, iniciales, parametros, operadores_visibles=None, metricas_visibles=None):
+
+        operadores_visibles = operadores_visibles or []
+        metricas_visibles = metricas_visibles or []
+        if not operadores_visibles and not metricas_visibles:
+            print("Selecciona al menos un operador o métrica para graficar")
+            return
 
         nombre_archivo = filedialog.asksaveasfilename()
         if nombre_archivo == "":
             print("Nombre de archivo no válido")
             return
+
+        parametros = dict(parametros)
+        parametros["VISIBLE_EXPECTED"] = operadores_visibles
+        parametros["VISIBLE_METRICS"] = metricas_visibles
+
         matemáticas.master(nombre_archivo, HAMILTONIANO= ham, 
                            inicial=iniciales, 
                            **parametros)
@@ -150,11 +188,33 @@ class ValoresFrame(ctk.CTkScrollableFrame):
             "J+",
         ]
 
-        self.expected_operators = OperadoresFrame(self, title="Operadores esperados", values=esperados["names"])
+        self.expected_operators = OperadoresFrame(
+            self,
+            title="Operadores esperados",
+            values=esperados["names"],
+            on_change=master._update_graph_visibility,
+        )
         self.expected_operators.grid(row=2, column = 0, pady=2, sticky ="news")
 
+        self.metricas_extra = OperadoresFrame(
+            self,
+            title="Gráficas extra",
+            values=[
+                "Parámetro Mandel",
+                "Parámetro Compresión Spin",
+                "Δq",
+                "Δp",
+                "ξ²_q",
+                "ξ²_p",
+                "Entropía de Von Neumann",
+                "Pureza",
+            ],
+            on_change=master._update_graph_visibility,
+        )
+        self.metricas_extra.grid(row=2, column=1, pady=2, sticky="news")
+
         self.damping_operators = OperadoresFrame(self, title="Damping operators", values= damping)
-        self.damping_operators.grid(row = 2, column = 1, pady=2, sticky = "news")
+        self.damping_operators.grid(row = 3, column = 0, pady=2, sticky = "news")
 
         ## Hacemos el botón que le pasa los valores a quitip y generamos el archivo.pkl ##
         self.boton_quitip = ctk.CTkButton(
@@ -163,13 +223,15 @@ class ValoresFrame(ctk.CTkScrollableFrame):
             command=lambda: master.do_math(
                 self.hamiltonianos_frame.radio_var.get(),
                 self.estados_iniciales_frame.radio_var.get(),
-                self.parametros_frame.get()
+                self.parametros_frame.get(),
+                self.expected_operators.get(),
+                self.metricas_extra.get(),
             )
         )
-        self.boton_quitip.grid(row=3,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
+        self.boton_quitip.grid(row=4,column = 0, padx=10, pady=(5, 5), sticky="ew",columnspan=2)
 
         self.button_select = ctk.CTkButton(self, text="Selecionar archivo",command=master.graph)
-        self.button_select.grid(row=4, column = 0, padx=10, pady=(5,5), sticky="ew", columnspan = 2)
+        self.button_select.grid(row=5, column = 0, padx=10, pady=(5,5), sticky="ew", columnspan = 2)
 
 
 class ParametrosFrame(ctk.CTkFrame):
@@ -223,21 +285,34 @@ class OpcionesPredeterminadasFrame(ctk.CTkFrame):
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="wn")
 
 class OperadoresFrame(ctk.CTkFrame):
-    def __init__(self, master, title:str, values:list):
+    def __init__(self, master, title:str, values:list, on_change=None):
         super().__init__(master)
 
         self.checkboxes = []
+        self.on_change = on_change
         self.columnconfigure(0, weight=1)
 
         self.title = ctk.CTkLabel(self, text=title, fg_color="gray30", corner_radius=6)
         self.title.grid(row=0, column=0, padx=10, pady=(5,5), sticky="ew")
 
         for i, key in enumerate(values):
-            option = ctk.CTkCheckBox(self, text=key)
+            option = ctk.CTkCheckBox(self, text=key, command=self._notify_change)
             option.grid(row=i+1, column = 0, padx=10, pady=(5,5),sticky="w")
             if title == "Operadores esperados":
                 option.select()
             self.checkboxes.append(option)
+
+    def _notify_change(self):
+        if self.on_change is not None:
+            self.on_change()
+
+    def set_selected(self, selected_values):
+        selected_values = set(selected_values)
+        for checkbox in self.checkboxes:
+            if checkbox.cget("text") in selected_values:
+                checkbox.select()
+            else:
+                checkbox.deselect()
 
     def get(self):
         checked_checkboxes = []

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import customtkinter as ctk
+from tkinter import filedialog
 
 from typing import TYPE_CHECKING
 
@@ -121,98 +122,213 @@ class InfoPanel(ctk.CTkFrame):
 
 
 class PlotsPanel(ctk.CTkFrame):
-    def __init__(self, master, resultados: dict, operator_names: list, times: np.ndarray, **grid_kwargs):
+    def __init__(self, master, resultados: dict, operator_names: list, operator_indices: list, times: np.ndarray, **grid_kwargs):
         super().__init__(master)
         self.resultados = resultados
-        self.operator_names = operator_names
+        self.operator_names = list(operator_names)
+        self.operator_indices = list(operator_indices)
+        self.series_indices = dict(zip(operator_names, operator_indices))
         self.times = times
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
         self.lines = {}
         self.axes = {}
         self.canvases = {}
+        self.tabs = {}
+        self.plot_keys = {}
+        self.visible_names = []
+        self.current_name = None
+        self.available_operator_names = list(operator_names)
+        self.closest_init = min(
+            self.resultados.keys(),
+            key=lambda key: (key[0] - 1.0) ** 2 + (key[1] - 0.25) ** 2,
+        )
+        self.current_key = self.closest_init
+        self.operator_ranges = self._compute_operator_ranges()
         self._build()
         self.grid(**grid_kwargs)
 
+    def destroy(self):
+        for ax in self.axes.values():
+            plt.close(ax.figure)
+        super().destroy()
+
     def _build(self):
-        self.tabview = ctk.CTkTabview(self, fg_color="gray20", segmented_button_fg_color="gray30",
-                                      text_color="white", segmented_button_selected_color="#0d7377",
-                                      segmented_button_selected_hover_color="#14919b")
-        self.tabview.grid(row=0, column=0, sticky="nsew")
+        self.tab_buttons = ctk.CTkSegmentedButton(
+            self,
+            values=[],
+            command=self._select_tab,
+            fg_color="gray30",
+            selected_color="#0d7377",
+            selected_hover_color="#14919b",
+        )
+        self.tab_buttons.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        self.save_button = ctk.CTkButton(
+            self,
+            text="Descargar gráfica",
+            command=self._save_current_plot,
+            state="disabled",
+            width=150,
+        )
+        self.save_button.grid(row=0, column=1, sticky="e")
 
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+        self.content = ctk.CTkFrame(self, fg_color="gray20")
+        self.content.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
+        self.content.columnconfigure(0, weight=1)
+        self.content.rowconfigure(0, weight=1)
 
-        # choose an arbitrary starting key (closest to some default)
-        eps_init, g_init = 1.0, 0.25
-        self.closest_init = min(self.resultados.keys(), key=lambda x: (x[0]-eps_init)**2 + (x[1]-g_init)**2)
+        self.empty_label = ctk.CTkLabel(self.content, text="No hay gráficas seleccionadas.")
 
-        # create per-operator tabs and initial lines
-        operator_ranges = self._compute_operator_ranges()
-        for op_idx, name in enumerate(self.operator_names):
-            tab = self.tabview.add(name)
-            tab.columnconfigure(0, weight=1)
-            tab.rowconfigure(0, weight=1)
+    def set_visible(self, operator_names: list, operator_indices: list):
+        current_name = self.tab_buttons.get()
+        self.operator_names = list(operator_names)
+        self.operator_indices = list(operator_indices)
+        self.series_indices = dict(zip(operator_names, operator_indices))
+        self.visible_names = self.operator_names
+        self.tab_buttons.configure(values=self.visible_names)
 
-            fig, ax = plt.subplots(figsize=(12, 6), facecolor='white')
-            ax.set_facecolor('white')
-            self.axes[op_idx] = ax
+        if not self.visible_names:
+            if self.current_name in self.tabs:
+                self.tabs[self.current_name].grid_forget()
+            self.current_name = None
+            self.save_button.configure(state="disabled")
+            self.empty_label.grid(row=0, column=0, sticky="nsew")
+            return
 
-            data = self.resultados[self.closest_init]
-            y_data = data['expect_values'][op_idx]
-            
-            # Limitar compresión a máximo de 10 en visualización
-            is_compresion = 'compresión' in name.lower()
-            if is_compresion:
-                y_data = np.clip(y_data, None, 10)
-            
-            line, = ax.plot(self.times, y_data, color=colors[op_idx % len(colors)], linewidth=2.5, antialiased=True)
-            self.lines[op_idx] = line
+        self.empty_label.grid_forget()
+        self.save_button.configure(state="normal")
+        selected_name = current_name if current_name in self.visible_names else self.visible_names[0]
+        self.tab_buttons.set(selected_name)
+        self._show_tab(selected_name)
 
-            ax.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
-            ax.set_ylabel(name, fontsize=15, color='black', fontweight='bold')
-            ax.set_ylim(operator_ranges[op_idx])
-            ax.grid(True, alpha=0.3, color='gray', linestyle='--', linewidth=0.7)
-            ax.tick_params(colors='black', labelsize=12)
-            ax.ticklabel_format(style='plain', useOffset=False)
-            ax.yaxis.offsetText.set_visible(False)
+    def _select_tab(self, name):
+        if name in self.visible_names:
+            self._show_tab(name)
 
-            for spine in ax.spines.values():
-                spine.set_edgecolor('#cccccc')
-                spine.set_linewidth(1.2)
+    def _show_tab(self, name):
+        if self.current_name != name and self.current_name in self.tabs:
+            self.tabs[self.current_name].grid_forget()
 
-            ax.set_title(f"{name} | ε={self.closest_init[0]:.3f}, g={self.closest_init[1]:.3f}", color='black', fontsize=15, fontweight='bold', pad=15)
+        is_new_plot = name not in self.tabs
+        if is_new_plot:
+            self._create_plot(name)
+        elif self.plot_keys[name] != self.current_key:
+            self._update_plot(name, self.current_key)
+            self.canvases[name].draw_idle()
 
-            self._setup_hover_cursor(fig, ax, line)
+        tab = self.tabs[name]
+        tab.grid(row=0, column=0, sticky="nsew")
+        self.current_name = name
 
-            canvas = FigureCanvasTkAgg(fig, master=tab)
-            self.canvases[op_idx] = canvas
-            canvas.draw()
-            fig.tight_layout()
-            canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+    def _save_current_plot(self):
+        plot_name = self.current_name
+        if plot_name is None or plot_name not in self.tabs:
+            return
 
+        epsilon, coupling = self.current_key
+        safe_name = "".join(
+            "_" if character in '<>:"/\\|?*' else character
+            for character in plot_name
+        ).strip(" .")
+        initial_name = (
+            f"{safe_name}_epsilon_{epsilon:.3f}_g_{coupling:.3f}.png"
+        )
+        file_path = filedialog.asksaveasfilename(
+            title="Descargar gráfica",
+            initialfile=initial_name,
+            defaultextension=".png",
+            filetypes=[
+                ("Imagen PNG", "*.png"),
+                ("Documento PDF", "*.pdf"),
+                ("Imagen SVG", "*.svg"),
+            ],
+        )
+        if not file_path:
+            return
+
+        self.axes[plot_name].figure.savefig(
+            file_path,
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+    def _create_plot(self, name):
+        series_idx = self.series_indices[name]
+        tab = ctk.CTkFrame(self.content, fg_color="gray20")
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(0, weight=1)
+
+        fig, ax = plt.subplots(figsize=(12, 6), facecolor='white')
+        ax.set_facecolor('white')
+
+        data = self.resultados[self.current_key]
+        y_data = data['expect_values'][series_idx]
+        if 'compresión' in name.lower():
+            y_data = np.clip(y_data, None, 10)
+
+        line, = ax.plot(self.times, y_data, color='#1f77b4', linewidth=2.5, antialiased=True)
+        ax.set_xlabel("Tiempo (unidades arbitrarias)", fontsize=15, color='black', fontweight='bold')
+        ax.set_ylabel(name, fontsize=15, color='black', fontweight='bold')
+        ax.set_ylim(self.operator_ranges[series_idx])
+        ax.grid(True, alpha=0.3, color='gray', linestyle='--', linewidth=0.7)
+        ax.tick_params(colors='black', labelsize=12)
+        ax.ticklabel_format(style='plain', useOffset=False)
+        ax.yaxis.offsetText.set_visible(False)
+
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#cccccc')
+            spine.set_linewidth(1.2)
+
+        self._setup_hover_cursor(fig, ax, line)
+        canvas = FigureCanvasTkAgg(fig, master=tab)
+        ax.set_title(
+            f"{name} | ε={self.current_key[0]:.3f}, g={self.current_key[1]:.3f}",
+            color='black',
+            fontsize=15,
+            fontweight='bold',
+            pad=15,
+        )
+        fig.tight_layout()
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
+        self.tabs[name] = tab
+        self.axes[name] = ax
+        self.lines[name] = line
+        self.canvases[name] = canvas
+        self.plot_keys[name] = self.current_key
+
+    def _update_plot(self, name, closest_key):
+        data = self.resultados[closest_key]
+        y_data = data['expect_values'][self.series_indices[name]]
+        if 'compresión' in name.lower():
+            y_data = np.clip(y_data, None, 10)
+
+        self.lines[name].set_ydata(y_data)
+        self.axes[name].set_title(
+            f"{name} | ε={closest_key[0]:.3f}, g={closest_key[1]:.3f}"
+        )
+        self.plot_keys[name] = closest_key
 
     def _compute_operator_ranges(self):
-        operator_ranges = {}
-        for op_idx in range(len(self.operator_names)):
-            op_values = []
-            for data in self.resultados.values():
-                op_values.extend(data['expect_values'][op_idx])
+        sample = np.asarray(next(iter(self.resultados.values()))['expect_values'])
+        min_values = np.full(sample.shape[0], np.inf)
+        max_values = np.full(sample.shape[0], -np.inf)
+        for data in self.resultados.values():
+            values = np.asarray(data['expect_values'])
+            min_values = np.minimum(min_values, np.min(values, axis=1))
+            max_values = np.maximum(max_values, np.max(values, axis=1))
 
-            if op_values:
-                min_val = min(op_values)
-                max_val = max(op_values)
-                
-                # Limitar compresión a máximo de 10 en visualización
-                is_compresion = 'compresión' in self.operator_names[op_idx].lower()
-                if is_compresion:
-                    max_val = min(max_val, 10)
-                
-                margen = 0.1 * (max_val - min_val) if (max_val - min_val) != 0 else 0.5
-                operator_ranges[op_idx] = (min_val - margen, max_val + margen)
-            else:
-                operator_ranges[op_idx] = (0, 1)
-
-        return operator_ranges
+        ranges = {}
+        for index, name in enumerate(self.available_operator_names):
+            min_val = min_values[index]
+            max_val = max_values[index]
+            if 'compresión' in name.lower():
+                max_val = min(max_val, 10)
+            margin = 0.1 * (max_val - min_val) if max_val != min_val else 0.5
+            ranges[index] = (min_val - margin, max_val + margin)
+        return ranges
 
     def _setup_hover_cursor(self, fig, ax, line):
         xdata = self.times
@@ -259,18 +375,10 @@ class PlotsPanel(ctk.CTkFrame):
         fig.canvas.mpl_connect("motion_notify_event", on_motion)
 
     def update_plots(self, closest_key):
-        data = self.resultados[closest_key]
-        for op_idx in range(len(self.operator_names)):
-            y_data = data['expect_values'][op_idx]
-            
-            # Limitar compresión a máximo de 10 en visualización
-            is_compresion = 'compresión' in self.operator_names[op_idx].lower()
-            if is_compresion:
-                y_data = np.clip(y_data, None, 10)
-            
-            self.lines[op_idx].set_ydata(y_data)
-            self.axes[op_idx].set_title(f"{self.operator_names[op_idx]} | ε={closest_key[0]:.3f}, g={closest_key[1]:.3f}")
-            self.canvases[op_idx].draw_idle()
+        self.current_key = closest_key
+        if self.current_name in self.tabs:
+            self._update_plot(self.current_name, closest_key)
+            self.canvases[self.current_name].draw_idle()
 
 class SlidersPanel(ctk.CTkFrame):
     def __init__(self, master, resultados: dict, on_change, closest_init, **grid_kwargs):
@@ -285,9 +393,11 @@ class SlidersPanel(ctk.CTkFrame):
     def _build(self):
         eps_values = sorted(set(k[0] for k in self.resultados.keys()))
         g_values = sorted(set(k[1] for k in self.resultados.keys()))
+        eps_from, eps_to = self._slider_bounds(eps_values)
+        g_from, g_to = self._slider_bounds(g_values)
 
         ctk.CTkLabel(self, text="ε:", font=("Arial", 15, "bold")).grid(row=0, column=0, padx=15, pady=12, sticky="w")
-        self.slider_eps = ctk.CTkSlider(self, from_=eps_values[0], to=eps_values[-1], number_of_steps=len(eps_values)-1, command=lambda v: self._on_slider())
+        self.slider_eps = ctk.CTkSlider(self, from_=eps_from, to=eps_to, number_of_steps=max(len(eps_values)-1, 1), command=lambda v: self._on_slider())
         self.slider_eps.set(self.closest_init[0])
         self.slider_eps.grid(row=0, column=1, sticky="ew", padx=(10, 15), pady=12)
 
@@ -295,12 +405,18 @@ class SlidersPanel(ctk.CTkFrame):
         self.eps_value_label.grid(row=0, column=2, padx=10, pady=12)
 
         ctk.CTkLabel(self, text="g:", font=("Arial", 15, "bold")).grid(row=1, column=0, padx=15, pady=12, sticky="w")
-        self.slider_g = ctk.CTkSlider(self, from_=g_values[0], to=g_values[-1], number_of_steps=len(g_values)-1, command=lambda v: self._on_slider())
+        self.slider_g = ctk.CTkSlider(self, from_=g_from, to=g_to, number_of_steps=max(len(g_values)-1, 1), command=lambda v: self._on_slider())
         self.slider_g.set(self.closest_init[1])
         self.slider_g.grid(row=1, column=1, sticky="ew", padx=(10, 15), pady=12)
 
         self.g_value_label = ctk.CTkLabel(self, text=f"{self.closest_init[1]:.4f}", font=("Arial", 13, "bold"), fg_color="#0d7377", corner_radius=6, width=80)
         self.g_value_label.grid(row=1, column=2, padx=10, pady=12)
+
+    @staticmethod
+    def _slider_bounds(values):
+        if len(values) == 1:
+            return values[0] - 0.5, values[0] + 0.5
+        return values[0], values[-1]
 
     def _on_slider(self):
         eps = float(self.slider_eps.get())
@@ -316,6 +432,8 @@ class GraphApp(ctk.CTkScrollableFrame):
         super().__init__(master)
         self.resultados = getattr(controller, "resultados", {})
         self.params = getattr(controller, "parametros", {})
+        self.plots: PlotsPanel | None = None
+        self.sliders: SlidersPanel | None = None
 
         if not self.resultados:
             return
@@ -328,37 +446,36 @@ class GraphApp(ctk.CTkScrollableFrame):
             if isinstance(self.resultados[k]["expect_values"], list):
                 self.resultados[k]["expect_values"] = np.array(self.resultados[k]["expect_values"])
 
-        operator_names = list(self.params.get("EXPECTED_NAMES") or [])
         sample = self.resultados[list(self.resultados.keys())[0]]
         base_values = np.asarray(sample["expect_values"])
+        expected_names = list(self.params.get("EXPECTED_NAMES") or [])
+        if expected_names and len(expected_names) <= base_values.shape[0]:
+            operator_names = _ampliar_nombres_operadores(expected_names, base_values.shape[0])
+        else:
+            operator_names = [f"Operador {i+1}" for i in range(base_values.shape[0])]
 
-        # Aunque el archivo ya exista sin flags, la vista debe añadir las métricas derivadas
-        # para que aparezcan como pestañas en la carga real del resultado.
-        if base_values.ndim == 2 and base_values.shape[0] >= 10:
-            if "Parámetro Mandel" not in operator_names:
-                calcular_mandel(self.resultados)
-                operator_names.append("Parámetro Mandel")
-            if "Parámetro Compresión Spin" not in operator_names:
-                calcular_compresion_spin(self.resultados, self.params["N_ATOMOS"] / 2)
-                operator_names.append("Parámetro Compresión Spin")
-            if "Δq" not in operator_names:
-                calcular_fluctuacion_cuadraturas(self.resultados)
-                operator_names.extend(["Δq", "Δp"])
-            if "ξ²_q" not in operator_names:
-                calcular_compresion_cuadraturas(self.resultados)
-                operator_names.extend(["ξ²_q", "ξ²_p"])
+        metricas_derivadas = {
+            "Parámetro Mandel": {"labels": ["Parámetro Mandel"], "fn": calcular_mandel},
+            "Parámetro Compresión Spin": {"labels": ["Parámetro Compresión Spin"], "fn": lambda r: calcular_compresion_spin(r, self.params["N_ATOMOS"] / 2)},
+            "Δq": {"labels": ["Δq", "Δp"], "fn": calcular_fluctuacion_cuadraturas},
+            "ξ²_q": {"labels": ["ξ²_q", "ξ²_p"], "fn": calcular_compresion_cuadraturas},
+        }
 
-        # Añadir entropía y pureza como series graficables
+        for nombre, config in metricas_derivadas.items():
+            labels = config["labels"]
+            if base_values.ndim == 2 and base_values.shape[0] >= 10 and not set(labels).issubset(operator_names):
+                config["fn"](self.resultados)
+                for label in labels:
+                    if label not in operator_names:
+                        operator_names.append(label)
+
         metricas_estado = [
             ("Entropía de Von Neumann", "entropy"),
             ("Pureza", "purity"),
         ]
 
         for nombre, clave in metricas_estado:
-            if (
-                nombre not in operator_names
-                and all(clave in resultado for resultado in self.resultados.values())
-            ):
+            if nombre not in operator_names and all(clave in resultado for resultado in self.resultados.values()):
                 longitudes_validas = all(
                     len(resultado[clave]) == len(resultado["expect_values"][0])
                     for resultado in self.resultados.values()
@@ -372,18 +489,30 @@ class GraphApp(ctk.CTkScrollableFrame):
                         resultado["expect_values"],
                         valores,
                     ])
-
                 operator_names.append(nombre)
 
-        sample = self.resultados[list(self.resultados.keys())[0]]
-        self.n_operators = len(sample["expect_values"])
-        if not operator_names:
-            operator_names = [f"Operador {i+1}" for i in range(self.n_operators)]
-        elif len(operator_names) < self.n_operators:
-            operator_names = _ampliar_nombres_operadores(operator_names, self.n_operators)
-
-        self.operator_names = operator_names[:self.n_operators]
+        self.available_operator_names = operator_names
+        self._set_visible_names(
+            self.params.get("VISIBLE_EXPECTED", operator_names),
+            self.params.get("VISIBLE_METRICS", []),
+        )
         self.times = np.linspace(self.params["TIEMPO_INICIO"], self.params["TIEMPO_FINAL"], self.params["PASOS"])
+
+    def _set_visible_names(self, visible_expected, visible_metrics):
+        visible_names = set(visible_expected or [])
+        visible_names.update(visible_metrics or [])
+        self.operator_indices = [
+            index for index, name in enumerate(self.available_operator_names)
+            if name in visible_names
+        ]
+        self.operator_names = [
+            self.available_operator_names[index] for index in self.operator_indices
+        ]
+
+    def update_visibility(self, visible_expected, visible_metrics):
+        self._set_visible_names(visible_expected, visible_metrics)
+        if self.plots is not None:
+            self.plots.set_visible(self.operator_names, self.operator_indices)
 
     def _build_ui(self):
         self.columnconfigure(0, weight=1)
@@ -392,11 +521,30 @@ class GraphApp(ctk.CTkScrollableFrame):
         self.rowconfigure(2, weight=0)
 
         self.info = InfoPanel(self, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
-        self.plots = PlotsPanel(self, self.resultados, self.operator_names, self.times, row=1, column=0, padx=15, pady=(10, 15), sticky="nsew")
-        self.sliders = SlidersPanel(self, self.resultados, on_change=self._on_change, closest_init=self.plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
+        self._render_plots()
+
+    def _render_plots(self):
+        if self.plots is None:
+            plots = PlotsPanel(
+                self,
+                self.resultados,
+                self.available_operator_names,
+                list(range(len(self.available_operator_names))),
+                self.times,
+                row=1,
+                column=0,
+                padx=15,
+                pady=(10, 15),
+                sticky="nsew",
+            )
+            self.plots = plots
+            self.sliders = SlidersPanel(self, self.resultados, on_change=self._on_change, closest_init=plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
+
+        self.plots.set_visible(self.operator_names, self.operator_indices)
 
     def _on_change(self, closest_key):
-        self.plots.update_plots(closest_key)
+        if self.plots is not None:
+            self.plots.update_plots(closest_key)
 
 
 

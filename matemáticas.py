@@ -184,6 +184,10 @@ def calculos(config):
         "EXPECTED_NAMES": list(expected.keys()),
         "INITIAL": config["inicial"]
         }
+    for clave in ("VISIBLE_EXPECTED", "VISIBLE_METRICS"):
+        if clave in config:
+            resultados["parametros"][clave] = list(config[clave])
+
     inicio = time.time()
     
     compute_fn = compute_single_tavis if config["HAMILTONIANO"] == "Tavis-Cummings" else compute_single_dicke
