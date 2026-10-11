@@ -164,17 +164,9 @@ class PlotsPanel(ctk.CTkFrame):
             selected_hover_color="#14919b",
         )
         self.tab_buttons.grid(row=0, column=0, sticky="ew", padx=(0, 10))
-        self.save_button = ctk.CTkButton(
-            self,
-            text="Descargar gráfica",
-            command=self._save_current_plot,
-            state="disabled",
-            width=150,
-        )
-        self.save_button.grid(row=0, column=1, sticky="e")
 
         self.content = ctk.CTkFrame(self, fg_color="gray20")
-        self.content.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
+        self.content.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
         self.content.columnconfigure(0, weight=1)
         self.content.rowconfigure(0, weight=1)
 
@@ -192,12 +184,10 @@ class PlotsPanel(ctk.CTkFrame):
             if self.current_name in self.tabs:
                 self.tabs[self.current_name].grid_forget()
             self.current_name = None
-            self.save_button.configure(state="disabled")
             self.empty_label.grid(row=0, column=0, sticky="nsew")
             return
 
         self.empty_label.grid_forget()
-        self.save_button.configure(state="normal")
         selected_name = current_name if current_name in self.visible_names else self.visible_names[0]
         self.tab_buttons.set(selected_name)
         self._show_tab(selected_name)
@@ -221,7 +211,7 @@ class PlotsPanel(ctk.CTkFrame):
         tab.grid(row=0, column=0, sticky="nsew")
         self.current_name = name
 
-    def _save_current_plot(self):
+    def save_current_plot(self):
         plot_name = self.current_name
         if plot_name is None or plot_name not in self.tabs:
             return
@@ -513,14 +503,28 @@ class GraphApp(ctk.CTkScrollableFrame):
         self._set_visible_names(visible_expected, visible_metrics)
         if self.plots is not None:
             self.plots.set_visible(self.operator_names, self.operator_indices)
+        if hasattr(self, "save_button"):
+            self.save_button.configure(
+                state="normal" if self.operator_names else "disabled"
+            )
 
     def _build_ui(self):
         self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=0)
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=0)
 
-        self.info = InfoPanel(self, self.params, row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
+        self.info = InfoPanel(
+            self,
+            self.params,
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=15,
+            pady=(15, 10),
+            sticky="ew",
+        )
         self._render_plots()
 
     def _render_plots(self):
@@ -533,12 +537,37 @@ class GraphApp(ctk.CTkScrollableFrame):
                 self.times,
                 row=1,
                 column=0,
+                columnspan=2,
                 padx=15,
                 pady=(10, 15),
                 sticky="nsew",
             )
             self.plots = plots
-            self.sliders = SlidersPanel(self, self.resultados, on_change=self._on_change, closest_init=plots.closest_init, row=2, column=0, padx=15, pady=(10, 15), sticky="ew")
+            self.sliders = SlidersPanel(
+                self,
+                self.resultados,
+                on_change=self._on_change,
+                closest_init=plots.closest_init,
+                row=2,
+                column=0,
+                padx=(15, 5),
+                pady=(10, 15),
+                sticky="ew",
+            )
+            self.save_button = ctk.CTkButton(
+                self,
+                text="Descargar gráfica",
+                command=self.plots.save_current_plot,
+                state="normal" if self.operator_names else "disabled",
+                width=150,
+            )
+            self.save_button.grid(
+                row=2,
+                column=1,
+                padx=(5, 15),
+                pady=(10, 15),
+                sticky="se",
+            )
 
         self.plots.set_visible(self.operator_names, self.operator_indices)
 
