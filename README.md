@@ -17,4 +17,4 @@ $$ H_T = aˆ{\dagger}a + \epsilon J_z + g(aˆ\dagger + a)(J_+ + J_-) $$
 
 El programa tiene la posibilidad de simular distintos estados iniciales a la vez que permite calcular una gran cantidad de valores esperados de combinaciones lineales de los operadores de creación y aniquilación bosónicos ($a$ y $aˆ\dagger$) y de spin colectivo ($J_\pm$)
 
-![interfaz](figures/interfaz.png)
+![interfaz](/Figures/interfaz.png)
